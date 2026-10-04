@@ -1,6 +1,6 @@
 // Offline support: keep the app shell, images, Three.js and the font so it opens without a connection.
 // Bump VERSION whenever index.html or assets change so installed copies pick up the update.
-const VERSION = 'fits-v5';
+const VERSION = 'fits-v6';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './assets/globe.png', './assets/paris.png', './assets/tokyo.png', './assets/newyork.png',
