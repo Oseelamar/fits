@@ -1,0 +1,1659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#3F8AFB">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="fits.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<title>Fits — Packing Assistant</title>
+<style>
+  @font-face{font-family:"Open Runde";src:url("https://cdn.jsdelivr.net/gh/lauridskern/open-runde@main/src/web/OpenRunde-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+  @font-face{font-family:"Open Runde";src:url("https://cdn.jsdelivr.net/gh/lauridskern/open-runde@main/src/web/OpenRunde-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
+  @font-face{font-family:"Open Runde";src:url("https://cdn.jsdelivr.net/gh/lauridskern/open-runde@main/src/web/OpenRunde-Semibold.woff2") format("woff2");font-weight:600;font-display:swap}
+  @font-face{font-family:"Open Runde";src:url("https://cdn.jsdelivr.net/gh/lauridskern/open-runde@main/src/web/OpenRunde-Bold.woff2") format("woff2");font-weight:700;font-display:swap}
+
+  :root{
+    --st:62px;   /* top inset in design pt: phone frame & installed app = status bar; browser tab = small */
+    --sb:26px;   /* bottom inset in design pt */
+    --bg:#F3F4F6;
+    --bg-2:#EEF1F4;
+    --card:#FFFFFF;
+    --ink:#1C1C1E;
+    --ink-2:#6B6E76;
+    --ink-3:#A3A6AD;
+    --line:rgba(28,28,30,.09);
+    --chip:#E4E6EA;
+    --blue:#3478F6;
+    --sky:#3F8AFB;
+    --blue-soft:#DDE8FB;
+    --orange:#FF6B2C;
+    --amber:#F08A1C;
+    --peach:#FDEBD3;
+    --ok:#22A35A;
+    --ease:cubic-bezier(.32,.72,0,1);
+    --spring:cubic-bezier(.2,1.3,.35,1);
+    --font:"Open Runde", ui-rounded, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:#D9DCE2;font-family:var(--font);color:var(--ink);display:flex;align-items:center;justify-content:center;
+    -webkit-font-smoothing:antialiased;overflow:hidden;user-select:none;-webkit-user-select:none;letter-spacing:-.01em}
+  button,input{font:inherit;color:inherit;background:none;border:0;outline:0}
+  button{cursor:pointer}
+  img{display:block;-webkit-user-drag:none}
+
+  /* ---------- device (iPhone 16 Pro Max frame on desktop, full-bleed on phones) ---------- */
+  .phone{position:relative;width:440px;height:956px;border-radius:60px;background:var(--bg);overflow:hidden;isolation:isolate;
+    box-shadow:0 0 0 11px #111,0 0 0 12px #3a3a3c,0 60px 120px -40px rgba(20,30,60,.5)}
+  @media (max-height:1000px) and (min-width:501px){ .phone{transform:scale(calc((100vh - 40px) / 956px));transform-origin:center} }
+  .phone::before{content:"";position:absolute;top:12px;left:50%;width:126px;height:37px;margin-left:-63px;background:#000;border-radius:20px;z-index:100}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:62px;z-index:90;display:flex;align-items:center;justify-content:space-between;padding:8px 46px 0 64px;font-weight:600;font-size:17px;pointer-events:none;transition:color .4s}
+  .statusbar .ic{display:flex;gap:7px;align-items:center}
+  .phone[data-tone="light"] .statusbar{color:#fff}
+  .homebar{position:absolute;left:50%;bottom:8px;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:var(--ink);z-index:90;pointer-events:none;transition:background .4s}
+  .phone[data-tone="light-bottom"] .homebar{background:#fff}
+  /* on a phone: keep the 440pt Figma frame exactly, scaled to the screen width (--k set in JS) */
+  @media (max-width:500px){
+    body{background:var(--bg);display:block;position:fixed;inset:0}
+    .phone{position:absolute;left:0;top:0;width:440px;height:calc(100% / var(--k,1));border-radius:0;box-shadow:none;transform:scale(var(--k,1))!important;transform-origin:0 0}
+    .phone::before,.statusbar,.homebar{display:none}
+  }
+
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);
+    transform:translateX(100%);transition:transform .6s var(--ease),filter .6s;will-change:transform;visibility:hidden}
+  .screen.active,.screen.behind{visibility:visible}
+  .screen.active{transform:none}
+  .screen.behind{transform:translateX(-26%);filter:brightness(.97)}
+  .screen.still{transform:none;transition:none}
+  .safe{height:var(--st);flex:none}
+
+  /* ---------- shared ---------- */
+  .nav{height:52px;flex:none;display:flex;align-items:center;padding:0 22px;margin-top:12px}
+  .round{width:40px;height:40px;border-radius:50%;background:var(--chip);display:grid;place-items:center;transition:transform .35s var(--spring),background .2s}
+  .round.lg{width:48px;height:48px}
+  .round:active{transform:scale(.9)}
+  .scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .scroll::-webkit-scrollbar{display:none}
+  .pad{padding:0 22px}
+  h1{font-size:36px;line-height:1.12;font-weight:700;letter-spacing:-.035em}
+  .dock{flex:none;padding:16px 22px calc(var(--sb) + 16px)}
+  .cta{width:100%;height:60px;border-radius:30px;background:var(--blue);color:#fff;font-size:18px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;gap:10px;transition:transform .35s var(--spring),opacity .2s,background .2s;
+    box-shadow:0 10px 24px -12px rgba(52,120,246,.7)}
+  .cta:active{transform:scale(.97);background:#2B6AE0}
+  .cta svg{transition:transform .35s var(--spring)}
+  .cta:active svg{transform:translateX(3px)}
+  .cta[disabled]{opacity:.35;pointer-events:none}
+
+  /* ---------- 01 · home ---------- */
+  #s-home{background:var(--bg)}
+  .h-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .h-scroll::-webkit-scrollbar{display:none}
+  .h-canvas{position:relative;height:max(100%, 890px)}
+  .w-body{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .w-body::-webkit-scrollbar{display:none}
+  .w-body > *{flex:none}
+  .w-body .w-grow{flex:1 0 24px}
+  .hero{position:absolute;left:0;right:0;top:0;height:calc(var(--st) + 606px);
+    background:radial-gradient(60% 34% at 50% 34%,rgba(255,255,255,.22),rgba(255,255,255,0) 70%),
+               linear-gradient(180deg,var(--sky) 0%,#428DFC 80%,var(--bg) 100%);
+    transition:height .7s var(--ease)}
+  .h-mark{position:absolute;left:22px;top:calc(var(--st) + 14px);font-size:30px;font-weight:700;letter-spacing:-.04em;color:#fff;transition:opacity .4s,transform .6s var(--ease)}
+  .h-mark i,.dot{font-style:normal;color:var(--orange)}
+  .h-globe{position:absolute;left:22px;top:calc(var(--st) + 60px);width:396px;height:264px;
+    -webkit-mask-image:radial-gradient(closest-side,#000 82%,transparent);mask-image:radial-gradient(closest-side,#000 82%,transparent);
+    animation:bob 6s ease-in-out infinite;transition:opacity .45s,transform .7s var(--ease)}
+  @keyframes bob{50%{translate:0 -6px}}
+  .h-title{position:absolute;left:22px;top:calc(var(--st) + 342px);font-size:44px;line-height:1.08;font-weight:700;letter-spacing:-.04em;color:#fff;transition:opacity .4s,transform .6s var(--ease)}
+  .h-search{position:absolute;z-index:4;left:22px;right:22px;top:calc(var(--st) + 470px);height:64px;border-radius:32px;background:#fff;display:flex;align-items:center;gap:12px;padding:0 22px;
+    box-shadow:0 12px 30px -14px rgba(20,50,120,.35);transition:box-shadow .3s}
+  .h-search:focus-within{box-shadow:0 0 0 3px rgba(52,120,246,.28),0 12px 30px -14px rgba(20,50,120,.35)}
+  .h-search input{flex:1;font-size:max(18px, calc(16.5px / var(--k,1)));font-weight:500;min-width:0}
+  .h-search input::placeholder{color:#7E828A;font-weight:400}
+  .h-pop{position:absolute;left:0;right:0;top:calc(var(--st) + 606px);transition:opacity .35s,transform .6s var(--ease)}
+  .h-pop h3{font-size:20px;font-weight:600;letter-spacing:-.02em;padding:0 22px}
+  .pop-row{display:flex;gap:10px;overflow-x:auto;padding:16px 22px 10px;scrollbar-width:none;scroll-snap-type:x mandatory}
+  .pop-row::-webkit-scrollbar{display:none}
+  .pop{position:relative;flex:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;width:126px;height:140px;border-radius:20px;background:#fff;overflow:hidden;text-align:left;padding:12px;scroll-snap-align:start;
+    transition:transform .35s var(--spring)}
+  .pop:active{transform:scale(.95)}
+  .pop b{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em}
+  .pop small{display:block;font-size:12px;color:var(--ink-3);margin-top:1px}
+  .pop img{position:absolute;right:0;bottom:0;height:106px;width:auto;mix-blend-mode:multiply}
+  /* autocomplete dropdown, anchored under the field */
+  .h-drop{position:absolute;z-index:5;left:22px;right:22px;top:calc(var(--st) + 542px);background:#fff;border-radius:22px;padding:6px 16px;
+    box-shadow:0 24px 50px -18px rgba(20,40,90,.35),0 0 0 1px rgba(20,40,90,.05);max-height:var(--dropH,320px);overflow-y:auto;scrollbar-width:none;
+    opacity:0;transform:translateY(-6px) scale(.98);transform-origin:50% 0;pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
+  .h-drop::-webkit-scrollbar{display:none}
+  .h-drop.on{opacity:1;transform:none;pointer-events:auto}
+  .h-drop .res:last-child{border-bottom:0}
+  .h-drop .empty{padding:16px 2px;font-size:15px;color:var(--ink-2)}
+  .h-drop .res .code{background:var(--bg)}
+  #s-home.typing .h-canvas{height:calc(100% + 480px)}
+  .res{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 0;border-bottom:1px solid var(--line);transition:opacity .2s}
+  .res:active{opacity:.5}
+  .res .code{width:46px;height:46px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;letter-spacing:.02em;flex:none}
+  .res b{display:block;font-size:17px;font-weight:600;letter-spacing:-.015em}
+  .res small{font-size:14px;color:var(--ink-2)}
+  .res .tmp{margin-left:auto;font-size:14px;font-weight:600;color:var(--ink-2);flex:none}
+  .res mark{background:none;color:var(--blue)}
+
+  /* ---------- 02 · when ---------- */
+  #s-when{background:transparent}
+  .w-hero{position:absolute;left:0;right:0;top:0;height:calc(var(--st) + 258px);background:linear-gradient(180deg,var(--sky),#428DFC)}
+  .w-back{position:absolute;left:22px;top:calc(var(--st) + 12px);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;z-index:2}
+  .w-globe{position:absolute;left:228px;top:calc(var(--st) + 9px);width:216px;height:144px;
+    -webkit-mask-image:radial-gradient(closest-side,#000 80%,transparent);mask-image:radial-gradient(closest-side,#000 80%,transparent)}
+  .w-dest{position:absolute;left:22px;right:22px;top:calc(var(--st) + 93px);height:72px;border-radius:20px;display:flex;align-items:center;gap:14px;padding:0 14px;
+    background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;text-align:left}
+  .w-dest .code{width:44px;height:44px;border-radius:12px;background:#fff;color:var(--ink);display:grid;place-items:center;font-size:15px;font-weight:700;flex:none}
+  .w-dest b{display:block;font-size:18px;font-weight:600;letter-spacing:-.02em}
+  .w-dest small{display:block;font-size:13px;opacity:.85}
+  .w-dest .pen{margin-left:auto;width:34px;height:34px;border-radius:50%;background:#fff;color:var(--ink);display:grid;place-items:center;flex:none}
+  .w-sheet{position:absolute;left:0;right:0;top:calc(var(--st) + 197px);bottom:0;background:var(--bg);border-radius:32px 32px 0 0;display:flex;flex-direction:column}
+  .grab{width:48px;height:6px;border-radius:3px;background:#D3D5DA;margin:12px auto 0;flex:none}
+  .w-sheet h1{margin-top:40px;padding:0 22px}
+  .chips{display:flex;gap:10px;padding:0 22px;margin-top:40px}
+  .chip{flex:1;height:44px;border-radius:22px;background:var(--chip);font-size:16px;font-weight:500;color:#4A4D54;transition:background .3s var(--ease),color .3s,transform .3s var(--spring)}
+  .chip:active{transform:scale(.94)}
+  .chip.on{background:var(--blue);color:#fff}
+  .dates{display:flex;gap:12px;padding:0 22px;margin-top:16px}
+  .date{flex:1;height:82px;border-radius:20px;background:#fff;display:flex;align-items:center;gap:12px;padding:0 14px 0 16px;text-align:left;transition:transform .3s var(--spring)}
+  .date:active{transform:scale(.97)}
+  .date .ic{color:var(--blue);flex:none}
+  .date small{display:block;font-size:14px;color:var(--ink-3)}
+  .date b{display:block;font-size:17px;font-weight:600;letter-spacing:-.015em;margin-top:2px;white-space:nowrap}
+  .date .chev{margin-left:auto;color:var(--ink-3);flex:none}
+  .summary{flex:none;margin:0 22px;height:80px;border-radius:20px;background:var(--peach);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .summary .d{font-size:28px;font-weight:700;color:var(--amber);letter-spacing:-.03em;display:flex;align-items:baseline;gap:6px}
+  .summary .w{text-align:right}
+  .summary .w .t{display:flex;align-items:center;justify-content:flex-end;gap:6px;color:var(--amber);font-size:16px;font-weight:600}
+  .summary .w small{display:block;font-size:14px;color:#55514B;margin-top:3px}
+
+  /* ---------- 03 · activities ---------- */
+  #s-acts{background:var(--bg-2)}
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 22px;margin-top:40px}
+  .act{position:relative;height:148px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;border-radius:20px;background:#fff;overflow:hidden;text-align:left;padding:14px 16px;
+    box-shadow:inset 0 0 0 0 var(--blue);transition:box-shadow .35s var(--ease),transform .35s var(--spring)}
+  .act:active{transform:scale(.96)}
+  .act b{position:relative;z-index:1;display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;line-height:1.2;max-width:70%}
+  .act .box{position:absolute;right:16px;top:14px;width:20px;height:20px;border-radius:6px;background:#E2E4E8;display:grid;place-items:center;z-index:1;transition:background .3s,transform .4s var(--spring)}
+  .act .box svg{opacity:0;transform:scale(.4);transition:all .35s var(--spring)}
+  .act img{position:absolute;right:0;bottom:0;max-height:104px;max-width:62%;mix-blend-mode:multiply;transition:transform .55s var(--spring)}
+  .act.on{box-shadow:inset 0 0 0 2px var(--blue)}
+  .act.on .box{background:var(--blue);transform:scale(1.08)}
+  .act.on .box svg{opacity:1;transform:none}
+  .act.on img{transform:scale(1.07) translate(-2px,-3px) rotate(-3deg)}
+
+  /* ---------- 04 · packing list ---------- */
+  .meta{display:flex;flex-wrap:wrap;gap:8px;padding:0 22px;margin-top:20px}
+  .pill{height:40px;padding:0 14px;border-radius:20px;background:#fff;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:8px;color:#3A3D44}
+  .pill b{font-weight:600;color:var(--ink)}
+  .group{margin-top:30px;padding:0 22px}
+  .group-h{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .group-h span{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+  .group-h em{font-style:normal;font-size:13px;color:var(--ink-3)}
+  .row{display:flex;align-items:center;gap:12px;min-height:68px;transition:opacity .3s}
+  .row .nm{flex:1;min-width:0}
+  .row .nm b{display:block;font-size:17px;font-weight:600;letter-spacing:-.015em}
+  .row .nm small{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);margin-top:1px}
+  .row .nm small i{width:3px;height:3px;border-radius:50%;background:var(--ink-3)}
+  .row.off{opacity:.45}
+  .qty{display:flex;align-items:center;gap:4px;flex:none}
+  .qty button{width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;transition:transform .3s var(--spring),opacity .2s}
+  .qty button:active{transform:scale(.84)}
+  .qty button[disabled]{opacity:.35}
+  .qty .n{min-width:30px;text-align:center;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  .plain .qty button{background:none;width:36px}
+  .tog{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none;transition:all .35s var(--spring);color:#fff}
+  .tog.on{background:var(--orange)}
+  .tog:not(.on){box-shadow:inset 0 0 0 2px #D5D7DC;color:var(--ink-3)}
+  .tog:active{transform:scale(.84)}
+  .add{display:flex;align-items:center;gap:12px;height:60px;width:100%;color:var(--ink-2);font-size:17px;font-weight:500;margin-top:8px}
+  .add i{width:40px;height:40px;border-radius:50%;background:var(--chip);display:grid;place-items:center;color:var(--ink)}
+
+  /* ---------- 05 · bag ---------- */
+  .bags{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 22px;margin-top:48px}
+  .bag{height:227px;border-radius:20px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 10px 18px;text-align:center;
+    transition:transform .35s var(--spring),box-shadow .35s}
+  .bag:active{transform:scale(.96)}
+  .bag .art{flex:1;display:grid;place-items:center;width:100%}
+  .bag .art img{height:var(--h,110px);width:auto;filter:drop-shadow(0 10px 10px rgba(0,0,0,.12));transition:transform .5s var(--spring)}
+  .bag:active .art img{transform:translateY(-4px) scale(1.03)}
+  .bag b{font-size:18px;font-weight:600;letter-spacing:-.02em}
+  .bag small{font-size:14px;color:var(--ink-3);margin-top:2px}
+  .bag .vol{margin-top:12px;height:28px;padding:0 12px;border-radius:14px;background:var(--chip);font-size:14px;font-weight:500;display:grid;place-items:center;color:#4A4D54}
+  .bag.own{background:var(--blue-soft);justify-content:center;gap:0}
+  .bag.own .ring{width:88px;height:88px;border-radius:50%;background:#fff;display:grid;place-items:center;color:var(--blue);margin-bottom:22px}
+  .bag.own small{color:#8C93A3}
+
+  /* rolling numbers */
+  .roll{display:inline-flex;white-space:pre;font-variant-numeric:tabular-nums}
+  .roll .col{display:inline-block;height:1em;line-height:1em;overflow:hidden;vertical-align:top;
+    -webkit-mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent)}
+  .roll .col > span{display:block;transition:transform .75s var(--spring)}
+  .roll .col > span > i{display:block;height:1em;font-style:normal;text-align:center}
+  .roll .ch{display:inline-block;height:1em;line-height:1em}
+
+  /* ---------- sheets ---------- */
+  .scrim{position:absolute;inset:0;background:rgba(10,14,25,.32);opacity:0;pointer-events:none;transition:opacity .4s;z-index:50}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:32px 32px 0 0;
+    transform:translateY(105%);transition:transform .55s var(--ease);padding:0 18px calc(34px + env(safe-area-inset-bottom));max-height:90%;display:flex;flex-direction:column}
+  .sheet.on{transform:none}
+  .sheet .grab{margin-bottom:22px}
+  .sheet h2{font-size:24px;font-weight:700;letter-spacing:-.03em;padding:0 4px 8px}
+  .cal-h{display:flex;align-items:center;justify-content:space-between}
+  .cal-h b{font-size:18px;font-weight:600}
+  .cal-h button{width:40px;height:40px;display:grid;place-items:center;color:var(--ink-3)}
+  .cal-w,.cal-g{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
+  .cal-w{margin-top:22px;font-size:13px;font-weight:500;color:var(--ink-2)}
+  .cal-g{margin-top:14px;row-gap:12px;isolation:isolate}
+  .day{height:44px;font-size:18px;font-weight:500;position:relative;z-index:0;font-variant-numeric:tabular-nums}
+  .day[disabled]{color:var(--ink-3)}
+  .day.mute{color:var(--ink-3)}
+  .day.in{background:var(--blue-soft)}
+  .day.s,.day.e{color:#fff}
+  .day.s::before,.day.e::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:48px;margin-left:-24px;border-radius:22px;background:var(--blue);z-index:-1}
+  .day.s{background:linear-gradient(90deg,transparent 50%,var(--blue-soft) 50%)}
+  .day.e{background:linear-gradient(90deg,var(--blue-soft) 50%,transparent 50%)}
+  .day.s.e,.day.s.solo{background:none}
+  .field{display:flex;align-items:center;justify-content:space-between;height:64px;border-bottom:1px solid var(--line)}
+  .field span{font-size:17px;font-weight:500}
+  .field small{display:block;font-size:13px;color:var(--ink-3)}
+
+  /* ---------- 06 · pack ---------- */
+  #s-pack{background:var(--bg)}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .pk-x{position:absolute;left:22px;top:calc(var(--st) + 12px);z-index:5}
+  .pk-replay{position:absolute;right:22px;top:calc(var(--st) + 12px);z-index:5;opacity:0;pointer-events:none;transition:opacity .4s}
+  .pk-replay.on{opacity:1;pointer-events:auto}
+  .pk-head{position:absolute;left:22px;right:22px;top:calc(var(--st) + 88px);z-index:3;pointer-events:none;transition:opacity .55s ease,transform .8s var(--ease),filter .55s}
+  .pk-head h1{font-size:40px;line-height:1.12}
+  .pk-head p{margin-top:12px;font-size:17px;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+  .pk-head p i{width:5px;height:5px;border-radius:50%;background:#C7C9CE}
+  .pk-head.gone{opacity:0;transform:translateY(-18px) scale(.97);filter:blur(5px)}
+  .pk-live{position:absolute;left:22px;right:22px;top:calc(var(--st) + 88px);z-index:3;display:flex;gap:12px;pointer-events:none;opacity:0;transform:translateY(12px);transition:opacity .5s,transform .7s var(--ease)}
+  .pk-live.on{opacity:1;transform:none}
+  .pk-bag{position:absolute;left:22px;right:22px;top:calc(var(--st) + 92px);height:88px;z-index:3;border-radius:20px;background:#fff;display:flex;align-items:center;gap:12px;padding:0 16px;
+    opacity:0;transform:translateY(-10px);transition:opacity .5s,transform .7s var(--ease);pointer-events:none}
+  .pk-bag.on{opacity:1;transform:none;pointer-events:auto}
+  .pk-bag .th{width:52px;height:64px;display:grid;place-items:center;flex:none;border-radius:14px;background:var(--bg)}
+  .pk-bag .th img{height:58px;width:auto}
+  .pk-bag b{display:block;font-size:18px;font-weight:600;letter-spacing:-.02em}
+  .pk-bag small{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-3);margin-top:2px}
+  .pk-bag small i{width:4px;height:4px;border-radius:50%;background:#C7C9CE}
+  .pk-bag .chg{margin-left:auto;height:36px;padding:0 16px;border-radius:18px;background:var(--blue-soft);color:var(--blue);font-size:16px;font-weight:600;flex:none}
+  .pk-cards{position:absolute;left:22px;right:22px;top:calc(var(--st) + 192px);z-index:3;display:flex;gap:12px;opacity:0;transform:translateY(10px);transition:opacity .5s .08s,transform .7s var(--ease) .08s;pointer-events:none}
+  .pk-cards.on,.pk-live .stat{opacity:1;transform:none}
+  .stat{flex:1;height:95px;border-radius:20px;background:#fff;position:relative;padding:12px 14px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end}
+  .stat .ico{position:absolute;left:12px;top:12px}
+  .stat .big{display:flex;align-items:baseline;gap:4px}
+  .stat .big .roll{font-size:40px;font-weight:700;letter-spacing:-.045em;line-height:.95}
+  .stat .big small{font-size:20px;font-weight:500;color:var(--ink-2)}
+  .stat p{font-size:14px;color:var(--ink-3);margin-top:6px}
+  .gauge path{transition:stroke-dashoffset .9s var(--ease),stroke .4s}
+  .pk-verdict{position:absolute;left:0;right:0;top:calc(var(--st) + 300px);z-index:3;display:flex;justify-content:center;pointer-events:none;opacity:0;transform:translateY(8px) scale(.97);transition:opacity .45s,transform .6s var(--spring)}
+  .pk-verdict.on{opacity:1;transform:none}
+  .pk-verdict span{height:34px;padding:0 14px 0 6px;border-radius:17px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;background:#E3F4EA;color:#17844A}
+  .pk-verdict span i{width:24px;height:24px;border-radius:50%;background:var(--ok);display:grid;place-items:center}
+  .pk-verdict.bad span{background:#FFE6DB;color:#D64E14}
+  .pk-verdict.bad span i{background:var(--orange)}
+  .pk-caption{position:absolute;left:0;right:0;bottom:calc(var(--sb) + 38px);z-index:3;display:flex;justify-content:center;transition:opacity .4s,transform .5s var(--ease);pointer-events:none}
+  .pk-caption span{height:40px;padding:0 18px;border-radius:20px;background:rgba(255,255,255,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 8px 24px -10px rgba(20,30,60,.25);display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:600}
+  .pk-caption em{font-style:normal;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .pk-caption.gone{opacity:0;transform:translateY(12px)}
+  .pk-sheet{position:absolute;left:0;right:0;bottom:0;z-index:4;height:560px;background:#fff;border-radius:32px 32px 0 0;
+    box-shadow:0 -24px 50px -30px rgba(20,30,60,.3);transform:translateY(100%);transition:transform .6s var(--ease);display:flex;flex-direction:column}
+  .pk-sheet.peek{transform:translateY(calc(100% - var(--peek,308px)))}
+  .pk-sheet.full{transform:translateY(0)}
+  .pk-sheet .grab{cursor:grab;margin-bottom:0}
+  .pk-sheet-h{display:flex;justify-content:space-between;align-items:baseline;padding:30px 22px 6px}
+  .pk-rows{padding-bottom:calc(var(--sb) + 20px)!important}
+  .pk-sheet-h b{font-size:24px;font-weight:700;letter-spacing:-.03em}
+  .pk-sheet-h span{font-size:16px;color:var(--ink-3)}
+  .pk-rows{flex:1;overflow-y:auto;scrollbar-width:none;padding-bottom:40px}
+  .pk-rows::-webkit-scrollbar{display:none}
+  .pk-rows .group{margin-top:22px}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div class="phone" id="phone" data-tone="light">
+  <div class="statusbar"><span>9:41</span><span class="ic">
+    <svg width="19" height="12" viewBox="0 0 18 12"><rect y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" width="3" height="12" rx="1" fill="currentColor"/></svg>
+    <svg width="17" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4.2-4.3L2.2 5.6a8.2 8.2 0 0 1 11.6 0l-1.6 1.6a5.9 5.9 0 0 0-8.4 0ZM.6 4 0 3.4a11.3 11.3 0 0 1 16 0l-.6.6-.9.9a10 10 0 0 0-13 0L.6 4Z" fill="currentColor"/></svg>
+    <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="20" height="9" rx="2" fill="currentColor"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2Z" fill="currentColor" opacity=".45"/></svg>
+  </span></div>
+
+  <!-- 01 · Where -->
+  <section class="screen active still" id="s-home">
+    <div class="h-scroll" id="hScroll"><div class="h-canvas">
+    <div class="hero"></div>
+    <div class="h-mark">fits<i>.</i></div>
+    <img class="h-globe" id="hGlobe" src="assets/globe.png" alt="">
+    <div class="h-title">Where<br>are you going?</div>
+    <label class="h-search" id="hSearch">
+      <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="10" cy="10" r="6.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="q" placeholder="Search city or country" autocomplete="off" enterkeyhint="search">
+    </label>
+    <div class="h-pop" id="hPop">
+      <h3>Popular Destinations</h3>
+      <div class="pop-row" id="popRow"></div>
+    </div>
+    <div class="h-drop" id="hDrop" role="listbox"></div>
+    </div></div>
+  </section>
+
+  <!-- 02 · When -->
+  <section class="screen still" id="s-when">
+    <div class="w-hero" id="wHero"></div>
+    <button class="w-back" id="wBack" aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <img class="w-globe" id="wGlobe" src="assets/globe.png" alt="">
+    <button class="w-dest" id="wDest"><span class="code" id="wCode">PAR</span><span><b id="wCity">Paris</b><small id="wCountry">France</small></span>
+      <span class="pen"><svg width="16" height="16" viewBox="0 0 16 16"><path d="m10.5 2.5 3 3L5 14H2v-3l8.5-8.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span></button>
+    <div class="w-sheet" id="wSheet">
+      <div class="grab"></div>
+      <div class="w-body">
+      <h1>When are<br>you going?</h1>
+      <div class="chips" id="chips">
+        <button class="chip" data-n="3">3 Days</button><button class="chip" data-n="7">7 Days</button><button class="chip" data-n="14">2 Weeks</button><button class="chip" data-n="30">1 Month</button>
+      </div>
+      <div class="dates">
+        <button class="date" id="dFrom"><svg class="ic" width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="4.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h16M7.5 2.5v3.5M14.5 2.5v3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="13" r="1" fill="currentColor"/><circle cx="11" cy="13" r="1" fill="currentColor"/><circle cx="14" cy="13" r="1" fill="currentColor"/></svg><span><small>From</small><b id="dFromT"></b></span><svg class="chev" width="16" height="16" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="date" id="dTo"><svg class="ic" width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="4.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h16M7.5 2.5v3.5M14.5 2.5v3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="13" r="1" fill="currentColor"/><circle cx="11" cy="13" r="1" fill="currentColor"/><circle cx="14" cy="13" r="1" fill="currentColor"/></svg><span><small>To</small><b id="dToT"></b></span><svg class="chev" width="16" height="16" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="w-grow"></div>
+      <div class="summary">
+        <div class="d"><span class="roll" id="sumN"></span><span id="sumU">days</span></div>
+        <div class="w"><div class="t" id="sumT"></div><small id="sumD"></small></div>
+      </div>
+      </div>
+      <div class="dock" style="padding-top:12px"><button class="cta" id="whenNext">Continue <svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+  </section>
+
+  <!-- 03 · Activities -->
+  <section class="screen" id="s-acts">
+    <div class="safe"></div>
+    <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <div class="scroll">
+      <h1 class="pad" style="margin-top:28px">What are you<br>getting up to?</h1>
+      <div class="acts" id="acts"></div>
+    </div>
+    <div class="dock"><button class="cta" id="actsNext">Continue <svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  </section>
+
+  <!-- 04 · Packing list -->
+  <section class="screen" id="s-list">
+    <div class="safe"></div>
+    <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <div class="scroll" id="listScroll">
+      <h1 class="pad" style="margin-top:28px">Choose your<br>packing list</h1>
+      <div class="meta" id="listMeta"></div>
+      <div id="groups"></div>
+      <div class="pad"><button class="add" id="addItem"><i><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i>Add an item</button></div>
+      <div style="height:20px"></div>
+    </div>
+    <div class="dock"><button class="cta" id="listNext">Continue <svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  </section>
+
+  <!-- 05 · Bag -->
+  <section class="screen" id="s-bag">
+    <div class="safe"></div>
+    <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <div class="scroll">
+      <h1 class="pad" style="margin-top:28px">What bag<br>are you taking?</h1>
+      <div class="bags" id="bags"></div>
+    </div>
+  </section>
+
+  <!-- 06 · Pack -->
+  <section class="screen still" id="s-pack">
+    <canvas id="gl"></canvas>
+    <button class="round lg pk-x" id="pkClose" aria-label="Close"><svg width="20" height="20" viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <button class="round lg pk-replay" id="pkReplay" aria-label="Pack again"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v3.5h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="pk-head" id="pkHead"><h1>Let’s see if<br>it fits.</h1><p><span id="pkCount">35 Items</span><i></i><span id="pkLimit">10 kg carry-on</span></p></div>
+    <div class="pk-bag" id="pkBag"><span class="th"><img id="pkThumb" alt=""></span><span><b id="pkBagName">Medium suitcase</b><small><span id="pkBagDims"></span><i></i><span id="pkBagVol"></span></small></span><button class="chg" id="pkChange">Change</button></div>
+    <div class="pk-cards" id="pkCards">
+      <div class="stat">
+        <svg class="ico" width="32" height="32" viewBox="0 0 32 32"><path d="M9 11h14l1.6 15.2a1.6 1.6 0 0 1-1.6 1.8H9a1.6 1.6 0 0 1-1.6-1.8L9 11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 11V9a4 4 0 0 1 8 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        <div class="big"><span class="roll" id="kg"></span><small>kg</small></div><p id="kgNote">approx. packed weight</p>
+      </div>
+      <div class="stat">
+        <svg class="ico gauge" width="56" height="34" viewBox="0 0 56 34"><path d="M6 30a22 22 0 0 1 44 0" fill="none" stroke="#E4E6EA" stroke-width="11"/><path id="gArc" d="M6 30a22 22 0 0 1 44 0" fill="none" stroke="var(--blue)" stroke-width="11" stroke-dasharray="69.2" stroke-dashoffset="69.2"/></svg>
+        <div class="big"><span class="roll" id="pct"></span><small>%</small></div><p>space used</p>
+      </div>
+    </div>
+    <div class="pk-verdict" id="pkVerdict"><span><i id="pkVIcon"></i><em id="pkVText" style="font-style:normal"></em></span></div>
+    <div class="pk-caption gone" id="pkCaption"><span><b id="capName">Shoes</b><em id="capCount"></em></span></div>
+    <div class="pk-sheet" id="pkSheet">
+      <div class="grab" id="pkGrab"></div>
+      <div class="pk-sheet-h"><b>Adjust your bag</b><span>Changes pack instantly</span></div>
+      <div class="pk-rows plain" id="pkRows"></div>
+    </div>
+  </section>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="homebar"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ================================================================
+   DATA
+   ================================================================ */
+// city, country, code, [lo,hi] in January, [lo,hi] in July, rainy months (0 = Jan)
+const RAW = [
+  ['Paris','France','PAR',[3,8],[16,25],[0,1,3,4,9,10,11],'paris'],
+  ['Tokyo','Japan','TYO',[2,10],[23,30],[5,6,8,9],'tokyo'],
+  ['New York','United States','NYC',[-3,4],[21,29],[3,4,6,9],'newyork'],
+  ['London','United Kingdom','LON',[3,8],[14,23],[0,1,9,10,11]],
+  ['Lisbon','Portugal','LIS',[8,15],[18,28],[0,1,10,11]],
+  ['Barcelona','Spain','BCN',[5,14],[21,29],[8,9,10]],
+  ['Rome','Italy','ROM',[3,12],[18,31],[9,10,11]],
+  ['Amsterdam','Netherlands','AMS',[1,6],[12,22],[0,7,8,9,10,11]],
+  ['Berlin','Germany','BER',[-2,3],[14,24],[5,6]],
+  ['Istanbul','Türkiye','IST',[3,9],[19,29],[0,1,10,11]],
+  ['Athens','Greece','ATH',[7,13],[23,33],[0,1,10,11]],
+  ['Reykjavík','Iceland','REK',[-3,2],[9,14],[0,1,2,8,9,10,11]],
+  ['Marrakech','Morocco','RAK',[6,18],[21,37],[]],
+  ['Cairo','Egypt','CAI',[9,19],[22,35],[]],
+  ['Lagos','Nigeria','LOS',[23,32],[23,28],[4,5,6,8,9]],
+  ['Accra','Ghana','ACC',[23,31],[22,27],[4,5,9]],
+  ['Nairobi','Kenya','NBO',[12,26],[11,22],[3,4,10]],
+  ['Cape Town','South Africa','CPT',[16,26],[7,18],[5,6,7]],
+  ['Dubai','United Arab Emirates','DXB',[14,24],[30,41],[]],
+  ['Kyoto','Japan','KYO',[1,9],[23,32],[5,6,8]],
+  ['Seoul','South Korea','SEL',[-6,2],[22,29],[6,7]],
+  ['Bangkok','Thailand','BKK',[21,32],[26,33],[4,5,6,7,8,9]],
+  ['Bali','Indonesia','DPS',[24,30],[23,29],[0,1,2,10,11]],
+  ['Singapore','Singapore','SIN',[24,30],[25,31],[0,10,11]],
+  ['Hong Kong','China','HKG',[14,19],[27,31],[4,5,6,7,8]],
+  ['Sydney','Australia','SYD',[19,26],[8,17],[1,2,3,5]],
+  ['Melbourne','Australia','MEL',[14,26],[6,14],[5,6,7,8]],
+  ['Auckland','New Zealand','AKL',[16,23],[8,14],[5,6,7]],
+  ['Los Angeles','United States','LAX',[9,20],[17,29],[0,1]],
+  ['San Francisco','United States','SFO',[8,14],[13,22],[0,1,2,11]],
+  ['Miami','United States','MIA',[16,24],[25,32],[5,6,7,8,9]],
+  ['Vancouver','Canada','YVR',[1,7],[13,22],[0,1,9,10,11]],
+  ['Toronto','Canada','YTO',[-9,-2],[18,27],[5,6]],
+  ['Mexico City','Mexico','MEX',[6,22],[12,23],[5,6,7,8]],
+  ['Rio de Janeiro','Brazil','RIO',[23,30],[18,25],[0,1,2,11]],
+  ['Buenos Aires','Argentina','BUE',[20,30],[8,15],[0,1,2,9,10]],
+];
+const DESTS = RAW.map(([city, country, code, jan, jul, rain, img]) => {
+  const lo = [], hi = [];
+  for (let m = 0; m < 12; m++){ const t = (1 - Math.cos(Math.PI * m / 6)) / 2; lo.push(Math.round(jan[0] + (jul[0] - jan[0]) * t)); hi.push(Math.round(jan[1] + (jul[1] - jan[1]) * t)); }
+  return { id: code, city, country, code, lo, hi, rain: new Set(rain), img };
+});
+const POPULAR = ['PAR','TYO','NYC'];
+
+const ACTS = [
+  { id:'city', name:'City exploring', img:'act-city' },
+  { id:'dinner', name:'Dinner & nightlife', img:'act-dinner' },
+  { id:'beach', name:'Beach', img:'act-beach' },
+  { id:'hiking', name:'Hiking', img:'act-hiking' },
+  { id:'business', name:'Business', img:'act-business' },
+  { id:'gym', name:'Gym', img:'act-gym' },
+];
+
+// every item maps to exactly one physical thing in the bag
+const CAT = {
+  shoes:     { name:'Shoes',       unit:'Pairs', kg:.65, vis:'shoes', grp:'Clothing' },
+  tees:      { name:'T-shirts',    kg:.16, vis:'garment', t:1.5, grp:'Clothing', colors:['#F2EFE9','#24272C','#8FA08A','#CDBB9E','#3B4C66','#E4DCCD'] },
+  shirts:    { name:'Shirts',      kg:.22, vis:'garment', t:1.4, grp:'Clothing', colors:['#DCE4EC','#FFFFFF','#E8DFCF'] },
+  trousers:  { name:'Trousers',    kg:.5,  vis:'garment', t:2.4, grp:'Clothing', colors:['#2F3540','#B7A07C','#3E4F66'] },
+  shorts:    { name:'Shorts',      kg:.22, vis:'garment', t:1.6, grp:'Clothing', colors:['#B7A07C','#6F7D67','#2F3540'] },
+  sweater:   { name:'Sweaters',    kg:.45, vis:'garment', t:3.2, grp:'Clothing', colors:['#8C6B4F','#5D6B5A','#E3D9C9'] },
+  jacket:    { name:'Jackets',     kg:.8,  vis:'garment', t:4.2, grp:'Clothing', colors:['#3B4437','#1F2229','#7A5A43'] },
+  blazer:    { name:'Blazer',      kg:.75, vis:'garment', t:3.6, grp:'Clothing', colors:['#2B2F38','#4A4F57'] },
+  swim:      { name:'Swimwear',    kg:.12, vis:'garment', t:.9,  grp:'Clothing', colors:['#C7684A','#2F6F8F'] },
+  gym:       { name:'Gym kits',    kg:.35, vis:'garment', t:1.8, grp:'Clothing', colors:['#26292E','#7E8A93'] },
+  underwear: { name:'Underwear',   kg:.06, vis:'roll', r:1.75, grp:'Clothing', colors:['#F2EFE9','#2A2D33','#9AA3AD'] },
+  socks:     { name:'Socks',       unit:'Pairs', kg:.05, vis:'roll', r:1.55, grp:'Clothing', colors:['#E7E2D9','#2A2D33','#B6A588'] },
+  toiletries:{ name:'Toiletries',  kg:.7,  vis:'wash',  grp:'Essentials', single:true },
+  charger:   { name:'Chargers',    kg:.15, vis:'pouch', grp:'Essentials', single:true },
+  passport:  { name:'Passport',    kg:.05, vis:'pouch', grp:'Essentials', single:true },
+  sunglasses:{ name:'Sunglasses',  kg:.05, vis:'pouch', grp:'Essentials', single:true },
+  umbrella:  { name:'Travel umbrella', kg:.3, vis:'umbrella', grp:'Essentials', single:true },
+  laptop:    { name:'Laptop',      kg:1.4, vis:'laptop', grp:'Extras', single:true },
+  camera:    { name:'Camera',      kg:.35, vis:'pouch', grp:'Extras', single:true },
+  headphones:{ name:'Headphones',  kg:.2,  vis:'pouch', grp:'Extras', single:true },
+};
+const ORDER = ['tees','shirts','trousers','shorts','sweater','jacket','blazer','swim','gym','underwear','socks','shoes','toiletries','charger','passport','sunglasses','umbrella','camera','headphones','laptop'];
+
+// bags: size drives the 3D model, so capacity is physical, not a lookup
+const BAGS = {
+  carry:  { name:'Carry on',        short:'carry-on', h:55, w:38, d:23, L:35, limit:10, kg:2.1, color:'#C9643F' },
+  medium: { name:'Medium suitcase', short:'medium',   h:66, w:44, d:26, L:65, limit:23, kg:3.3, color:'#0E4ED6' },
+  large:  { name:'Large suitcase',  short:'large',    h:76, w:50, d:30, L:98, limit:23, kg:4.3, color:'#ECD8B6' },
+  own:    { name:'Your bag',        short:'bag',      h:60, w:40, d:25, L:52, limit:15, kg:3.0, color:'#59626F', custom:true },
+};
+
+const S = {
+  dest: DESTS[0],
+  start: new Date(2026, 9, 12),
+  end: new Date(2026, 9, 19),
+  acts: new Set(['city','dinner']),
+  bag: 'carry',
+  qty: {}, genKey: '',
+};
+const days = () => Math.round((S.end - S.start) / 864e5);
+const bag = () => BAGS[S.bag];
+function climate(){
+  const m = S.start.getMonth(), d = S.dest;
+  const lo = d.lo[m], hi = d.hi[m], rain = d.rain.has(m);
+  const feel = hi < 8 ? 'Cold' : hi < 17 ? 'Cool' : hi < 24 ? 'Mild' : hi < 30 ? 'Warm' : 'Hot';
+  return { lo, hi, rain, feel, desc: feel + (rain ? ' showers likely' : ', mostly dry') };
+}
+function generate(){
+  const n = days(), np = Math.min(n, 7), c = climate(), a = S.acts;
+  const warm = c.hi >= 22, cool = c.hi < 18, cold = c.hi < 9;
+  const q = {};
+  q.tees = Math.max(2, Math.ceil(np * .7)) + (warm ? 1 : 0);
+  q.shirts = (a.has('dinner') ? (np > 4 ? 2 : 1) : 0) + (a.has('business') ? 2 : 0);
+  q.trousers = (warm ? 1 : np > 4 ? 2 : 1) + (a.has('business') ? 1 : 0);
+  q.shorts = (warm || a.has('beach')) ? (np > 4 ? 2 : 1) : 0;
+  q.sweater = cold ? 2 : cool ? 1 : 0;
+  q.jacket = (c.hi < 20 || c.rain) ? 1 : 0;
+  q.blazer = a.has('business') ? 1 : 0;
+  q.swim = a.has('beach') ? (np > 4 ? 2 : 1) : 0;
+  q.gym = a.has('gym') ? Math.ceil(np / 3) : 0;
+  q.underwear = np; q.socks = (warm && a.has('beach')) ? Math.max(2, np - 2) : np;
+  q.shoes = 1 + ((a.has('dinner') || a.has('business')) ? 1 : 0) + (a.has('hiking') ? 1 : 0) + (a.has('beach') ? 1 : 0);
+  q.toiletries = 1; q.charger = 1; q.passport = 1;
+  q.sunglasses = (c.hi >= 18 || a.has('beach')) ? 1 : 0;
+  q.umbrella = c.rain ? 1 : 0;
+  q.camera = (a.has('city') || a.has('hiking')) ? 1 : 0;
+  q.headphones = 1;
+  q.laptop = a.has('business') ? 1 : 0;
+  S.qty = q;
+}
+function ensureList(){
+  const key = [S.dest.id, +S.start, +S.end, [...S.acts].sort().join()].join('|');
+  if (key !== S.genKey){ generate(); S.genKey = key; listShown = new Set(); }
+}
+const itemsKg = () => ORDER.reduce((s,id) => s + (S.qty[id]||0) * CAT[id].kg, 0);
+const totalKg = () => bag().kg + itemsKg();
+const itemCount = () => ORDER.reduce((s,id) => s + (S.qty[id]||0), 0);
+
+/* ================================================================
+   Helpers
+   ================================================================ */
+const $ = id => document.getElementById(id);
+const phone = $('phone');
+const vibrate = ms => { try { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(ms); } catch(_){} };
+function roll(el, str){
+  const chars = [...str];
+  const same = el._str && el._str.length === str.length && [...el._str].every((c,i) => /\d/.test(c) === /\d/.test(chars[i]));
+  if (!same){
+    const prev = (el._str || '').replace(/\D/g,'').split('');
+    el.innerHTML = ''; const cols = [];
+    const nd = chars.filter(c => /\d/.test(c)).length; let di = 0;
+    for (const c of chars){
+      if (/\d/.test(c)){
+        const col = document.createElement('span'); col.className = 'col';
+        const strip = document.createElement('span');
+        strip.innerHTML = [...'0123456789'].map(d => `<i>${d}</i>`).join('');
+        col.appendChild(strip); el.appendChild(col);
+        const from = prev[prev.length - nd + di];
+        strip.style.transition = 'none'; strip.style.transform = `translateY(${-(from ?? c)}em)`;
+        cols.push({ strip, c }); di++;
+      } else { const s = document.createElement('span'); s.className = 'ch'; s.textContent = c; el.appendChild(s); }
+    }
+    el._cols = cols;
+    requestAnimationFrame(() => requestAnimationFrame(() => cols.forEach(({strip,c}) => { strip.style.transition = ''; strip.style.transform = `translateY(${-c}em)`; })));
+  } else {
+    let j = 0; for (const c of chars) if (/\d/.test(c)) el._cols[j++].strip.style.transform = `translateY(${-c}em)`;
+  }
+  el._str = str;
+}
+const ICON = {
+  minus: '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  plus: '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  check: '<svg width="16" height="16" viewBox="0 0 16 16"><path d="m3.5 8.3 2.9 2.9L12.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  rain: '<svg width="22" height="22" viewBox="0 0 22 22"><path d="M7 14a3.6 3.6 0 0 1-.5-7.2A4.8 4.8 0 0 1 15.6 8 3.1 3.1 0 0 1 15.4 14H7Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m8 16.5-.8 2M11.5 16.5l-.8 2M15 16.5l-.8 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  sun: '<svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 2.5v2M11 17.5v2M2.5 11h2M17.5 11h2M5 5l1.4 1.4M15.6 15.6 17 17M5 17l1.4-1.4M15.6 6.4 17 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  cal: '<svg width="18" height="18" viewBox="0 0 22 22"><rect x="3" y="4.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 9h16M7.5 2.5v3.5M14.5 2.5v3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+};
+
+/* ---------- phones: scale the 440pt design frame to the screen ---------- */
+// Three ways this runs, each with its own insets (all in design pt):
+//   desktop  → inside the drawn phone frame: Figma's 62pt status bar + 26pt home-indicator zone
+//   browser  → Safari/Chrome already own the top and bottom bars: tight insets
+//   app      → added to Home Screen: real safe areas from the device
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const probe = document.createElement('div');
+probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)';
+document.body.appendChild(probe);
+let ST = 62;
+function fitPhone(){
+  const r = document.documentElement.style;
+  if (innerWidth <= 500){
+    const k = innerWidth / 440, cs = getComputedStyle(probe);
+    const top = parseFloat(cs.paddingTop) || 0, bottom = parseFloat(cs.paddingBottom) || 0;
+    ST = standalone ? Math.max(44, top / k + 4) : 16;
+    const SB = standalone ? Math.max(10, bottom / k - 6) : 8;
+    r.setProperty('--k', k); r.setProperty('--st', ST + 'px'); r.setProperty('--sb', SB + 'px');
+  } else { ST = 62; ['--k','--st','--sb'].forEach(v => r.removeProperty(v)); }
+}
+fitPhone();
+addEventListener('resize', fitPhone);
+
+/* ================================================================
+   Navigation
+   ================================================================ */
+const screens = { home:$('s-home'), when:$('s-when'), acts:$('s-acts'), list:$('s-list'), bag:$('s-bag'), pack:$('s-pack') };
+const tone = { home:'light', when:'light', acts:'', list:'', bag:'', pack:'' };
+const stack = [{ id:'home' }];
+function setTone(id){ phone.dataset.tone = tone[id] || ''; }
+function go(id, mode = 'push'){
+  const curId = stack.at(-1).id, cur = screens[curId], next = screens[id];
+  stack.push({ id, mode }); setTone(id); onEnter(id);
+  if (mode === 'morph') return morphIn(cur, next);
+  if (mode === 'up'){ // full-screen takeover for the packing moment
+    next.classList.add('active');
+    next.animate([{ opacity:0, transform:'scale(1.04)' }, { opacity:1, transform:'none' }], { duration:520, easing:'cubic-bezier(.32,.72,0,1)' });
+    setTimeout(() => cur.classList.remove('active'), 520);
+    return;
+  }
+  next.style.transition = 'none'; next.classList.remove('behind'); void next.offsetWidth; next.style.transition = '';
+  cur.classList.add('behind'); cur.classList.remove('active'); next.classList.add('active');
+}
+function back(){
+  if (stack.length < 2) return;
+  const { id, mode } = stack.pop(), cur = screens[id], prevId = stack.at(-1).id, prev = screens[prevId];
+  setTone(prevId); onLeave(id);
+  if (mode === 'morph') return morphOut(prev, cur);
+  if (mode === 'up'){
+    prev.classList.add('active');
+    cur.animate([{ opacity:1 }, { opacity:0, transform:'scale(1.03)' }], { duration:380, easing:'ease' }).onfinish = () => cur.classList.remove('active');
+    onEnter(prevId); return;
+  }
+  cur.classList.remove('active'); prev.classList.remove('behind'); prev.classList.add('active');
+  onEnter(prevId);
+}
+document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', back));
+function onEnter(id){
+  if (id === 'when') renderWhen();
+  if (id === 'list'){ ensureList(); renderList(); }
+  if (id === 'bag') renderBags();
+  if (id === 'pack') Pack.enter();
+}
+function onLeave(id){ if (id === 'pack') Pack.leave(); }
+
+/* ---------- the signature hand-off: Where → When ---------- */
+const EASE = 'cubic-bezier(.32,.72,0,1)';
+function rel(el){ const p = phone.getBoundingClientRect(), r = el.getBoundingClientRect(), k = p.width / phone.offsetWidth; return { x:(r.left - p.left)/k, y:(r.top - p.top)/k, w:r.width/k, h:r.height/k }; }
+function flip(el, from, opts){
+  const to = rel(el);
+  return el.animate([
+    { transform:`translate(${from.x - to.x}px, ${from.y - to.y}px) scale(${from.w / to.w}, ${from.h / to.h})`, transformOrigin:'0 0' },
+    { transform:'none', transformOrigin:'0 0' }], opts);
+}
+function morphIn(home, when){
+  const gFrom = rel($('hGlobe')), sFrom = rel($('hSearch'));
+  when.classList.add('active');
+  const D = 820;
+  flip($('wGlobe'), gFrom, { duration:D, easing:EASE });
+  const hTall = (ST + 606) + 'px', hShort = (ST + 258) + 'px';
+  $('wHero').animate([{ height:hTall, opacity:0 }, { height:hTall, opacity:1, offset:.12 }, { height:hShort, opacity:1 }], { duration:D, easing:EASE });
+  const dest = $('wDest'), dTo = rel(dest);
+  dest.animate([{ transform:`translateY(${sFrom.y - dTo.y}px)`, opacity:0 }, { opacity:1, offset:.35 }, { transform:'none', opacity:1 }], { duration:D, easing:EASE });
+  $('wBack').animate([{ opacity:0, transform:'scale(.6)' }, { opacity:1, transform:'none' }], { duration:500, delay:260, easing:EASE, fill:'backwards' });
+  $('wSheet').animate([{ transform:'translateY(100%)' }, { transform:'none' }], { duration:D, delay:90, easing:EASE, fill:'backwards' });
+  for (const el of [$('hSearch'), home.querySelector('.h-title'), home.querySelector('.h-mark'), $('hPop'), $('hDrop')])
+    el.animate([{ opacity:1 }, { opacity:0 }], { duration:220, fill:'forwards' }).onfinish = function(){ this.cancel(); };
+  $('hGlobe').style.visibility = 'hidden';
+  setTimeout(() => { home.classList.remove('active'); $('hGlobe').style.visibility = ''; exitSearch(true); }, D);
+}
+function morphOut(home, when){
+  home.classList.add('active');
+  const gTo = rel($('hGlobe')), D = 700;
+  const g = $('wGlobe'), gFrom = rel(g);
+  $('hGlobe').style.visibility = 'hidden';
+  g.animate([{ transform:'none', transformOrigin:'0 0' }, { transform:`translate(${gTo.x - gFrom.x}px, ${gTo.y - gFrom.y}px) scale(${gTo.w / gFrom.w}, ${gTo.h / gFrom.h})`, transformOrigin:'0 0' }], { duration:D, easing:EASE, fill:'forwards' });
+  const hTall = (ST + 606) + 'px', hShort = (ST + 258) + 'px';
+  $('wHero').animate([{ height:hShort, opacity:1 }, { height:hTall, opacity:1, offset:.85 }, { height:hTall, opacity:0 }], { duration:D, easing:EASE, fill:'forwards' });
+  $('wSheet').animate([{ transform:'none' }, { transform:'translateY(100%)' }], { duration:D * .8, easing:EASE, fill:'forwards' });
+  $('wDest').animate([{ opacity:1 }, { opacity:0 }], { duration:220, fill:'forwards' });
+  $('wBack').animate([{ opacity:1 }, { opacity:0 }], { duration:160, fill:'forwards' });
+  for (const el of [$('hSearch'), home.querySelector('.h-title'), home.querySelector('.h-mark'), $('hPop')])
+    el.animate([{ opacity:0, transform:'translateY(14px)' }, { opacity:1, transform:'none' }], { duration:500, delay:D * .5, easing:EASE, fill:'backwards' });
+  setTimeout(() => {
+    when.classList.remove('active'); $('hGlobe').style.visibility = '';
+    when.getAnimations({ subtree:true }).forEach(a => a.cancel());
+  }, D);
+}
+
+/* ================================================================
+   01 · Where
+   ================================================================ */
+const home = $('s-home'), q = $('q');
+$('popRow').innerHTML = POPULAR.map(code => { const d = DESTS.find(x => x.code === code);
+  return `<button class="pop" data-code="${d.code}"><b>${d.city}</b><small>${d.country}</small><img src="assets/${d.img}.png" alt=""></button>`; }).join('');
+$('popRow').addEventListener('click', e => { const b = e.target.closest('.pop'); if (b) pickDest(b.dataset.code); });
+function resultsHTML(term){
+  const t = term.trim().toLowerCase(), m = S.start.getMonth();
+  const esc = t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const starts = d => d.city.toLowerCase().startsWith(t) || d.code.toLowerCase().startsWith(t) ? 0 : d.country.toLowerCase().startsWith(t) ? 1 : 2;
+  const hit = DESTS.filter(d => (d.city + ' ' + d.country + ' ' + d.code).toLowerCase().includes(t)).sort((a, b) => starts(a) - starts(b)).slice(0, 8);
+  const hl = s => s.replace(new RegExp(`(${esc})`, 'ig'), '<mark>$1</mark>');
+  if (!hit.length) return `<div class="empty">No destinations match “${term.trim()}”</div>`;
+  return hit.map(d => `<button class="res" role="option" data-code="${d.code}"><span class="code">${d.code}</span><span><b>${hl(d.city)}</b><small>${hl(d.country)}</small></span><span class="tmp">${d.lo[m]}–${d.hi[m]}°</span></button>`).join('');
+}
+const drop = $('hDrop'), hScroll = $('hScroll');
+const coarse = matchMedia('(pointer: coarse)').matches;
+function showDrop(){
+  const v = q.value.trim();
+  if (!v){ drop.classList.remove('on'); return; }
+  drop.innerHTML = resultsHTML(v); drop.scrollTop = 0;
+  // keep the list above the keyboard
+  const k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--k')) || 1;
+  const visible = (window.visualViewport ? visualViewport.height : innerHeight) / k;
+  const dropTop = drop.offsetTop - hScroll.scrollTop;
+  drop.style.setProperty('--dropH', Math.max(150, Math.min(380, visible - dropTop - 16)) + 'px');
+  drop.classList.add('on');
+}
+function hideDrop(){ drop.classList.remove('on'); }
+q.addEventListener('focus', () => {
+  // on phones, lift the field so the keyboard doesn't cover the suggestions (what native apps do)
+  if (coarse){ home.classList.add('typing'); requestAnimationFrame(() => hScroll.scrollTo({ top: $('hSearch').offsetTop - (ST + 24), behavior:'smooth' })); }
+  showDrop();
+});
+q.addEventListener('input', showDrop);
+q.addEventListener('blur', () => setTimeout(() => {
+  if (document.activeElement === q) return;
+  hideDrop();
+  if (coarse && stack.at(-1).id === 'home'){ hScroll.scrollTo({ top:0, behavior:'smooth' }); setTimeout(() => home.classList.remove('typing'), 400); }
+}, 180));
+q.addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ const f = drop.querySelector('.res'); if (f) pickDest(f.dataset.code); }
+  if (e.key === 'Escape'){ q.value = ''; hideDrop(); q.blur(); }
+});
+// pointerdown so the pick lands before the field blurs
+drop.addEventListener('pointerdown', e => e.preventDefault());
+drop.addEventListener('click', e => { const b = e.target.closest('.res'); if (b) pickDest(b.dataset.code); });
+window.visualViewport && visualViewport.addEventListener('resize', () => { if (document.activeElement === q) showDrop(); });
+function exitSearch(){ q.value = ''; hideDrop(); home.classList.remove('typing'); hScroll.scrollTop = 0; }
+function pickDest(code){
+  S.dest = DESTS.find(d => d.code === code); vibrate(8); q.blur();
+  if (stack.at(-1).id === 'home') go('when', 'morph');
+}
+
+/* ================================================================
+   02 · When
+   ================================================================ */
+const fmtLong = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+function renderWhen(){
+  const c = climate(), n = days();
+  $('wCode').textContent = S.dest.code; $('wCity').textContent = S.dest.city; $('wCountry').textContent = S.dest.country;
+  $('dFromT').textContent = fmtLong(S.start); $('dToT').textContent = fmtLong(S.end);
+  document.querySelectorAll('#chips .chip').forEach(ch => ch.classList.toggle('on', +ch.dataset.n === n));
+  roll($('sumN'), String(n)); $('sumU').textContent = n === 1 ? 'day' : 'days';
+  $('sumT').innerHTML = (c.rain ? ICON.rain : ICON.sun) + `${c.lo}–${c.hi}°C`;
+  $('sumD').textContent = c.desc;
+}
+$('wBack').addEventListener('click', back);
+$('wDest').addEventListener('click', back);
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  S.end = new Date(S.start); S.end.setDate(S.start.getDate() + +b.dataset.n); vibrate(6); renderWhen();
+});
+$('whenNext').addEventListener('click', () => go('acts'));
+
+/* ---------- bottom sheet ---------- */
+const sheet = $('sheet'), scrim = $('scrim');
+let onSheetClose = null;
+function openSheet(html, bind, onClose){ sheet.innerHTML = '<div class="grab"></div>' + html; bind(sheet); onSheetClose = onClose; sheet.classList.add('on'); scrim.classList.add('on'); }
+function closeSheet(){ sheet.classList.remove('on'); scrim.classList.remove('on'); const f = onSheetClose; onSheetClose = null; f && f(); }
+scrim.addEventListener('click', closeSheet);
+(() => {
+  let y0 = null, dy = 0;
+  sheet.addEventListener('pointerdown', e => { if (e.target.closest('.grab')){ y0 = e.clientY; sheet.style.transition = 'none'; sheet.setPointerCapture(e.pointerId); } });
+  sheet.addEventListener('pointermove', e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); sheet.style.transform = `translateY(${dy}px)`; });
+  sheet.addEventListener('pointerup', () => { if (y0 === null) return; sheet.style.transition = ''; sheet.style.transform = ''; if (dy > 90) closeSheet(); y0 = null; dy = 0; });
+})();
+
+/* ---------- calendar ---------- */
+const TODAY = new Date(2026, 8, 30);
+let calMonth, pick;
+function calHTML(){
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  const first = (new Date(y, m, 1).getDay() + 6) % 7, nd = new Date(y, m + 1, 0).getDate();
+  let cells = '';
+  for (let i = 0; i < first; i++) cells += '<span></span>';
+  for (let d = 1; d <= nd; d++){
+    const dt = new Date(y, m, d), t = +dt;
+    const s = +S.start === t, e = S.end && +S.end === t, inR = S.end && t > +S.start && t < +S.end;
+    cells += `<button class="day ${s?'s':''} ${e?'e':''} ${s && !S.end ? 'solo' : ''} ${inR?'in':''}" data-t="${t}" ${dt < TODAY ? 'disabled' : ''}>${d}</button>`;
+  }
+  const trail = (7 - (first + nd) % 7) % 7;
+  for (let d = 1; d <= trail; d++) cells += `<span class="day mute">${d}</span>`;
+  return `<div class="cal-h"><button data-m="-1" aria-label="Previous month"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <b>${calMonth.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</b>
+    <button data-m="1" aria-label="Next month"><svg width="20" height="20" viewBox="0 0 20 20"><path d="m7.5 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <div class="cal-w"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+    <div class="cal-g">${cells}</div>`;
+}
+function openCal(which){
+  pick = which;
+  const saved = { s:S.start, e:S.end };
+  calMonth = new Date((which === 'end' ? S.end : S.start).getFullYear(), (which === 'end' ? S.end : S.start).getMonth(), 1);
+  openSheet(`<div id="cal">${calHTML()}</div>`, el => {
+    const cal = el.querySelector('#cal');
+    cal.addEventListener('click', e => {
+      const m = e.target.closest('[data-m]'), d = e.target.closest('.day[data-t]');
+      if (m) calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +m.dataset.m, 1);
+      if (d && !d.disabled){
+        const t = new Date(+d.dataset.t); vibrate(5);
+        if (pick === 'end' && S.end !== null && t > S.start && (t - S.start) / 864e5 <= 30){ S.end = t; cal.innerHTML = calHTML(); setTimeout(closeSheet, 320); return; }
+        if (pick === 'start' || t <= S.start || (t - S.start) / 864e5 > 30){ S.start = t; S.end = null; pick = 'end'; }
+        else { S.end = t; cal.innerHTML = calHTML(); setTimeout(closeSheet, 320); return; }
+      }
+      cal.innerHTML = calHTML();
+    });
+  }, () => { if (!S.end){ S.start = saved.s; S.end = saved.e; } renderWhen(); });
+}
+$('dFrom').addEventListener('click', () => openCal('start'));
+$('dTo').addEventListener('click', () => openCal('end'));
+
+/* ================================================================
+   03 · Activities
+   ================================================================ */
+$('acts').innerHTML = ACTS.map(a => `<button class="act ${S.acts.has(a.id)?'on':''}" data-id="${a.id}"><b>${a.name.replace(' & ', ' &amp;<br>')}</b>
+  <span class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+  <img src="assets/${a.img}.png" alt=""></button>`).join('');
+$('acts').addEventListener('click', e => {
+  const b = e.target.closest('.act'); if (!b) return;
+  const id = b.dataset.id; S.acts.has(id) ? S.acts.delete(id) : S.acts.add(id);
+  b.classList.toggle('on', S.acts.has(id)); vibrate(5);
+});
+$('actsNext').addEventListener('click', () => go('list'));
+
+/* ================================================================
+   04 · Packing list
+   ================================================================ */
+const fmtKg = v => v.toFixed(2).replace(/0$/,'').replace(/\.0$/,'.0');
+function rowHTML(id){
+  const c = CAT[id], n = S.qty[id] || 0;
+  const sub = c.single ? `${fmtKg(c.kg)} kg` : `${fmtKg(c.kg * n)} kg${c.unit ? `<i></i>${c.unit}` : ''}`;
+  const ctl = c.single
+    ? `<button class="tog ${n?'on':''}" data-t="${id}" aria-label="Toggle ${c.name}">${n ? ICON.check : ICON.plus}</button>`
+    : `<div class="qty"><button data-d="-1" data-id="${id}" ${n<=0?'disabled':''} aria-label="Fewer ${c.name}">${ICON.minus}</button><span class="n roll" data-n="${id}"></span><button data-d="1" data-id="${id}" aria-label="More ${c.name}">${ICON.plus}</button></div>`;
+  return `<div class="row ${n?'':'off'}" data-row="${id}"><div class="nm"><b>${c.name}</b><small>${sub}</small></div>${ctl}</div>`;
+}
+function groupsHTML(filter){
+  const groups = {};
+  for (const id of ORDER){ const c = CAT[id]; if (!filter(id)) continue; (groups[c.grp] ||= []).push(id); }
+  return Object.entries(groups).map(([g, ids]) => {
+    const count = ids.reduce((s,id) => s + (S.qty[id]||0), 0);
+    return `<div class="group"><div class="group-h"><span>${g}</span><em>${count} ${count === 1 ? 'Item' : 'Items'}</em></div>${ids.map(rowHTML).join('')}</div>`;
+  }).join('');
+}
+let listShown = new Set();
+function durLabel(n){ return n % 7 === 0 && n >= 14 ? `${n/7} Weeks` : n === 7 ? '1 Week' : n === 30 ? '1 Month' : `${n} Days`; }
+function renderList(){
+  const c = climate(), n = days();
+  $('listMeta').innerHTML = `<span class="pill">${ICON.cal}${durLabel(n)}</span><span class="pill">${c.rain ? ICON.rain : ICON.sun}<b>${c.lo}–${c.hi}°C</b> ${c.rain ? 'Showers' : 'Dry'}</span>` +
+    [...S.acts].map(a => `<span class="pill">${ACTS.find(x => x.id === a).name}</span>`).join('');
+  ORDER.forEach(id => { if ((S.qty[id]||0) > 0) listShown.add(id); });
+  $('groups').innerHTML = groupsHTML(id => listShown.has(id));
+  $('groups').querySelectorAll('[data-n]').forEach(el => roll(el, String(S.qty[el.dataset.n] || 0)));
+}
+function bindQty(root, onChange){
+  root.addEventListener('click', e => {
+    const b = e.target.closest('[data-d],[data-t]'); if (!b) return;
+    const id = b.dataset.id || b.dataset.t, c = CAT[id];
+    const before = S.qty[id] || 0;
+    const after = b.dataset.t ? (before ? 0 : 1) : Math.max(0, Math.min(before + +b.dataset.d, c.vis === 'shoes' ? 5 : 14));
+    if (after === before) return;
+    S.qty[id] = after; vibrate(6);
+    onChange(id, before, after);
+  });
+}
+function refreshRow(root, id){
+  const row = root.querySelector(`[data-row="${id}"]`); if (!row) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = rowHTML(id);
+  const fresh = tmp.firstChild, n = row.querySelector('[data-n]');
+  if (n){
+    row.className = fresh.className; row.querySelector('small').innerHTML = fresh.querySelector('small').innerHTML;
+    row.querySelector('[data-d="-1"]').disabled = !(S.qty[id] > 0);
+    roll(n, String(S.qty[id] || 0));
+  } else row.replaceWith(fresh);
+  const g = root.querySelector(`[data-row="${id}"]`).closest('.group');
+  if (g){ const ids = [...g.querySelectorAll('[data-row]')].map(r => r.dataset.row); const c = ids.reduce((s,i) => s + (S.qty[i]||0), 0); g.querySelector('.group-h em').textContent = `${c} ${c === 1 ? 'Item' : 'Items'}`; }
+}
+bindQty($('groups'), id => refreshRow($('groups'), id));
+$('addItem').addEventListener('click', () => {
+  const opts = ORDER.filter(id => !listShown.has(id));
+  openSheet(`<h2>Add an item</h2><div style="overflow-y:auto">${opts.length ? opts.map(id => `<button class="res" data-id="${id}"><span class="code" style="background:var(--bg)">${ICON.plus}</span><span><b>${CAT[id].name}</b><small>${CAT[id].kg} kg${CAT[id].single ? '' : ' each'}</small></span></button>`).join('') : '<p style="color:var(--ink-2);padding:8px 4px">Everything is already on your list.</p>'}</div>`, el => {
+    el.addEventListener('click', e => { const b = e.target.closest('.res[data-id]'); if (!b) return; S.qty[b.dataset.id] = 1; listShown.add(b.dataset.id); closeSheet(); renderList(); });
+  });
+});
+$('listNext').addEventListener('click', () => go('bag'));
+
+/* ================================================================
+   05 · Bag
+   ================================================================ */
+const dimsTxt = b => `${b.h} x ${b.w} x ${b.d}cm`;
+function renderBags(){
+  const th = Pack.thumbs();
+  $('bags').innerHTML = ['carry','medium','large'].map(k => { const b = BAGS[k];
+    return `<button class="bag" data-bag="${k}"><span class="art"><img src="${th[k]}" style="--h:${Math.round(60 + (b.h - 55) * 2.6 + 34)}px" alt=""></span><b>${b.name}</b><small>${dimsTxt(b)}</small><span class="vol">~${b.L}L</span></button>`; }).join('') +
+    `<button class="bag own" data-bag="own"><span class="ring"><svg width="40" height="40" viewBox="0 0 40 40"><rect x="22" y="6" width="11" height="28" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M22 12h4M22 17h6M22 22h4M22 27h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 9.5a3.5 3.5 0 0 1 7 0V28l-3.5 5L9 28V9.5ZM9 14h7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg></span><b>I have my own bag</b><small>Enter custom dimensions</small></button>`;
+}
+$('bags').addEventListener('click', e => {
+  const b = e.target.closest('.bag'); if (!b) return;
+  vibrate(8);
+  if (b.dataset.bag === 'own') return openOwnBag();
+  S.bag = b.dataset.bag; go('pack', 'up');
+});
+function openOwnBag(){
+  const o = BAGS.own;
+  const f = (k, label, unit, min, max) => `<div class="field"><span>${label}<small>${unit}</small></span><div class="qty"><button data-k="${k}" data-d="-1">${ICON.minus}</button><span class="n" id="own-${k}">${o[k]}</span><button data-k="${k}" data-d="1">${ICON.plus}</button></div></div>`;
+  openSheet(`<h2>Your bag</h2>${f('h','Height','cm, incl. wheels')}${f('w','Width','cm')}${f('d','Depth','cm')}${f('limit','Weight limit','kg, from your airline')}<div style="height:22px"></div><button class="cta" id="ownGo">Pack this bag</button>`, el => {
+    const lim = { h:[40,85], w:[28,60], d:[15,35], limit:[5,32] };
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-k]');
+      if (b){ const k = b.dataset.k; o[k] = Math.max(lim[k][0], Math.min(lim[k][1], o[k] + +b.dataset.d * (k === 'limit' ? 1 : 1))); el.querySelector('#own-' + k).textContent = o[k]; vibrate(4); }
+      if (e.target.closest('#ownGo')){ o.L = Math.round(o.h * o.w * o.d / 1000 * .85); S.bag = 'own'; closeSheet(); setTimeout(() => go('pack', 'up'), 200); }
+    });
+  });
+}
+
+/* ================================================================
+   06 · The packing scene (Three.js) — carried over from v1
+   ================================================================ */
+const Pack = (() => {
+  const canvas = $('gl');
+  let renderer, scene, camera, running = false, built = false;
+
+  // ---------- suitcase geometry (cm) — derived from the chosen bag ----------
+  let W, H, D, R, WALL = .8, Y0 = 5, CY, BACK_D, LID_D = 5.5, IN, INNER_H, GW, GD, GX, GZ, TS, RCOL, RZ, RLEN, ROWH = 3.2, SHOE_H = 8, GZ_S, POCKET;
+  let PR, PX, PY, segs, PLEN;
+  function setDims(b){
+    H = b.h - Y0; W = b.w; D = b.d; R = Math.min(7, W * .16); CY = Y0 + H/2;
+    BACK_D = D - LID_D - 2.4;
+    IN = { x0:-W/2 + 1.1, x1:W/2 - 1.1, y0:Y0 + 1.1, y1:Y0 + H - 1.1, z0:-(BACK_D - 1.2) };
+    INNER_H = IN.y1 - IN.y0;
+    const innerW = IN.x1 - IN.x0, innerD = BACK_D - 1.2;
+    GW = innerW - 12.4; GD = innerD - .5;
+    TS = (24 * 14.4) / (GW * GD);              // same fabric, bigger fold → thinner stack
+    GX = IN.x0 + GW/2 + .2; GZ = IN.z0 + GD/2 + .1;
+    RCOL = [IN.x1 - 9.1, IN.x1 - 5.6, IN.x1 - 2.1]; RLEN = innerD - .5; RZ = IN.z0 + RLEN/2 + .2;
+    GZ_S = IN.z0 + 7.6;
+    POCKET = {
+      wash:    { p: V(W/2 - W*.22, -H*.28, 2.1), r: new THREE.Euler(0, 0, .04) },
+      pouch:   { p: V(W/2 + W*.25, -H*.3, 2.55), r: new THREE.Euler(0, 0, -.05) },
+      umbrella:{ p: V(W/2, -H*.085, 2.6), r: new THREE.Euler(0, 0, 0) },
+      laptop:  { p: V(W/2, H*.18, 3.35), r: new THREE.Euler(0, 0, 0) },
+    };
+    PR = R + .5; PX = W/2 + .5; PY = H/2 + .5;
+    segs = [
+      { len: 2*(PX - PR), f: s => [(-PX + PR) + s, PY, 0, 1] },
+      { len: Math.PI*PR/2, f: s => { const a = Math.PI/2 - s/PR; return [PX - PR + Math.cos(a)*PR, PY - PR + Math.sin(a)*PR, Math.cos(a), Math.sin(a)]; } },
+      { len: 2*(PY - PR), f: s => [PX, PY - PR - s, 1, 0] },
+      { len: Math.PI*PR/2, f: s => { const a = -s/PR; return [PX - PR + Math.cos(a)*PR, -PY + PR + Math.sin(a)*PR, Math.cos(a), Math.sin(a)]; } },
+      { len: 2*(PX - PR), f: s => [PX - PR - s, -PY, 0, -1] },
+    ];
+    PLEN = segs.reduce((s, g) => s + g.len, 0);
+  }
+  const tOf = id => CAT[id].t * TS;
+
+  // ---------- tiny animation engine ----------
+  const tweens = [];
+  const now = () => performance.now();
+  function tween(dur, update, { delay = 0, ease = x => x } = {}){
+    return new Promise(res => tweens.push({ t0: now() + delay, dur, update, ease, res }));
+  }
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const E = {
+    inOut: t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2,
+    out: t => 1 - Math.pow(1 - t, 3),
+    in: t => t*t*t,
+    land: t => 1 - Math.exp(-6.5*t) * Math.cos(8.5*t) * (1 - t),   // one soft overshoot
+  };
+  const lerp = (a,b,t) => a + (b - a)*t;
+  function V(x,y,z){ return new THREE.Vector3(x,y,z); }
+  const bump = { x:0, v:0 };
+  const kick = m => { bump.v -= m; };
+
+  // ---------- textures ----------
+  function canvasTex(size, draw, repeat = 1){
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    draw(c.getContext('2d'), size);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.anisotropy = 4;
+    return t;
+  }
+  let fabric, spiral, net, contact, lining;
+  function makeTextures(){
+    if (fabric) return;
+    fabric = canvasTex(256, (g, s) => {
+      g.fillStyle = '#fff'; g.fillRect(0,0,s,s);
+      for (let i = 0; i < 9000; i++){ const v = 222 + Math.random()*33|0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(Math.random()*s, Math.random()*s, 1.4, 1.4); }
+      g.globalAlpha = .06; g.fillStyle = '#000'; for (let y = 0; y < s; y += 3) g.fillRect(0, y, s, 1);
+    });
+    lining = canvasTex(256, (g, s) => {
+      g.fillStyle = '#fff'; g.fillRect(0,0,s,s); g.strokeStyle = 'rgba(0,0,0,.07)'; g.lineWidth = 1;
+      for (let i = -s; i < s; i += 6){ g.beginPath(); g.moveTo(i,0); g.lineTo(i+s, s); g.stroke(); }
+    }, 3);
+    spiral = canvasTex(128, (g, s) => {
+      g.fillStyle = '#fff'; g.fillRect(0,0,s,s); g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 3; g.beginPath();
+      for (let a = 0; a < Math.PI * 8; a += .1){ const r = 4 + a * 2.2; g.lineTo(s/2 + Math.cos(a)*r, s/2 + Math.sin(a)*r); }
+      g.stroke();
+    });
+    net = canvasTex(64, (g, s) => {
+      g.clearRect(0,0,s,s); g.strokeStyle = 'rgba(38,36,33,.85)'; g.lineWidth = 2.2;
+      for (let i = -s; i <= s; i += 8){ g.beginPath(); g.moveTo(i,0); g.lineTo(i+s,s); g.stroke(); g.beginPath(); g.moveTo(i+s,0); g.lineTo(i,s); g.stroke(); }
+    }, 5);
+    contact = canvasTex(128, (g, s) => {
+      const r = g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+      r.addColorStop(0,'rgba(0,0,0,.55)'); r.addColorStop(.55,'rgba(0,0,0,.18)'); r.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle = r; g.fillRect(0,0,s,s);
+    });
+    contact.wrapS = contact.wrapT = THREE.ClampToEdgeWrapping;
+  }
+
+  // ---------- materials ----------
+  const mats = {};
+  const mat = (key, make) => mats[key] ||= make();
+  const fabricMat = c => mat('f' + c, () => new THREE.MeshStandardMaterial({ color:c, roughness:.92, map:fabric }));
+  const shellMat = c => mat('shell' + c, () => new THREE.MeshPhysicalMaterial({ color:c, roughness:.34, clearcoat:.55, clearcoatRoughness:.28, side:THREE.DoubleSide, envMapIntensity:.9 }));
+  function M(){
+    return {
+      lining: mat('lining', () => new THREE.MeshStandardMaterial({ color:'#E6E3DE', roughness:1, map:lining, side:THREE.DoubleSide })),
+      dark: mat('dark', () => new THREE.MeshStandardMaterial({ color:'#2A2724', roughness:.55 })),
+      rubber: mat('rubber', () => new THREE.MeshStandardMaterial({ color:'#1C1B1A', roughness:.8 })),
+      metal: mat('metal', () => new THREE.MeshStandardMaterial({ color:'#D9D4CC', roughness:.25, metalness:1 })),
+      teeth: mat('teeth', () => new THREE.MeshStandardMaterial({ color:'#8E8880', roughness:.4, metalness:.6 })),
+      net: mat('net', () => new THREE.MeshStandardMaterial({ map:net, transparent:true, roughness:.9, side:THREE.DoubleSide, depthWrite:false })),
+    };
+  }
+
+  // ---------- geometry helpers ----------
+  function rr(w, h, r, path = new THREE.Shape()){
+    const x = -w/2, y = -h/2;
+    path.moveTo(x + r, y); path.lineTo(x + w - r, y); path.absarc(x + w - r, y + r, r, -Math.PI/2, 0);
+    path.lineTo(x + w, y + h - r); path.absarc(x + w - r, y + h - r, r, 0, Math.PI/2);
+    path.lineTo(x + r, y + h); path.absarc(x + r, y + h - r, r, Math.PI/2, Math.PI);
+    path.lineTo(x, y + r); path.absarc(x + r, y + r, r, Math.PI, Math.PI*1.5);
+    return path;
+  }
+  function ring(w, h, r, t, depth){
+    const s = rr(w, h, r); s.holes.push(rr(w - 2*t, h - 2*t, r - t, new THREE.Path()));
+    return new THREE.ExtrudeGeometry(s, { depth, bevelEnabled:false, curveSegments:28 });
+  }
+  function plate(w, h, r, b){
+    return new THREE.ExtrudeGeometry(rr(w - 2*b, h - 2*b, r - b), { depth:.01, bevelEnabled:true, bevelThickness:b, bevelSize:b, bevelSegments:6, curveSegments:28 });
+  }
+  function mesh(geo, m, cast = true){ const o = new THREE.Mesh(geo, m); o.castShadow = cast; o.receiveShadow = true; return o; }
+
+  // ---------- the suitcase ----------
+  function buildHalf(front, shell){
+    const m = M(), g = new THREE.Group(), s = front ? 1 : -1;
+    const wallDepth = front ? LID_D : BACK_D;
+    const w = mesh(ring(W, H, R, WALL, wallDepth), shell); w.position.z = front ? 0 : -wallDepth; g.add(w);
+    const p = mesh(plate(W, H, R, 1.2), shell); p.position.z = s * wallDepth; g.add(p);
+    const inner = mesh(ring(W - 2*WALL + .02, H - 2*WALL + .02, R - WALL, .25, wallDepth - 1.1), m.lining, false);
+    inner.position.z = front ? 0 : -(wallDepth - 1.1); g.add(inner);
+    const back = mesh(new THREE.ShapeGeometry(rr(W - 2*WALL, H - 2*WALL, R - WALL), 24), m.lining, false);
+    back.position.z = s * (wallDepth - 1.3); g.add(back);
+    for (const k of [-.3, -.1, .1, .3]){   // raised ribs on the outer face
+      const rib = mesh(new RoundedBoxGeometry(2.2, H - 11, 1.0, 3, .45), shell);
+      rib.position.set(k * W, 0, s * (wallDepth + 1.35)); g.add(rib);
+    }
+    const tape = mesh(ring(W + .35, H + .35, R + .17, .45, .75), m.dark);   // zipper tape + teeth at the seam
+    tape.position.z = front ? 0 : -.75; g.add(tape);
+    if (!front){ const teeth = mesh(ring(W + .5, H + .5, R + .25, .3, .3), m.teeth); teeth.position.z = -.15; g.add(teeth); }
+    return g;
+  }
+  function makeCase(color){
+    const m = M(), shell = shellMat(color);
+    const group = new THREE.Group();
+    const back = buildHalf(false, shell); back.position.y = CY; group.add(back);
+    const lid = new THREE.Group(); lid.position.set(-W/2, CY, 0); group.add(lid);
+    const front = buildHalf(true, shell); front.position.x = W/2; lid.add(front);
+    const netM = new THREE.Mesh(new THREE.PlaneGeometry(W - 5, H * .44), m.net); netM.position.set(W/2, -H * .22, .25); netM.rotation.y = Math.PI; lid.add(netM);
+    const band = mesh(new RoundedBoxGeometry(W - 5, 1.1, .6, 2, .25), m.dark, false); band.position.set(W/2, 0, .3); lid.add(band);
+    const pocketItems = new THREE.Group(); lid.add(pocketItems);
+    const topH = new THREE.Group(); topH.position.set(0, Y0 + H, -BACK_D * .52);
+    for (const x of [-6.5, 6.5]){ const p = mesh(new RoundedBoxGeometry(2, 2.6, 2.6, 2, .5), m.dark); p.position.set(x, 1, 0); topH.add(p); }
+    const bar = mesh(new RoundedBoxGeometry(15.5, 1.8, 2.6, 3, .8), m.dark); bar.position.set(0, 2.6, 0); topH.add(bar);
+    group.add(topH);
+    const sideH = new THREE.Group(); sideH.position.set(W/2, CY + 4, -BACK_D * .52);
+    for (const y of [-6, 6]){ const p = mesh(new RoundedBoxGeometry(2.4, 2, 2.4, 2, .5), m.dark); p.position.set(1, y, 0); sideH.add(p); }
+    const sbar = mesh(new RoundedBoxGeometry(1.8, 14, 2.4, 3, .8), m.dark); sbar.position.set(2.3, 0, 0); sideH.add(sbar);
+    group.add(sideH);
+    const tro = mesh(new RoundedBoxGeometry(W * .52, 3, 3, 2, 1), m.dark); tro.position.set(0, Y0 + H + .2, -BACK_D + .1); group.add(tro);
+    for (const x of [-W/2 + 3.2, W/2 - 3.2]) for (const z of [-BACK_D + 1.9, -3.2]){
+      const hsg = mesh(new RoundedBoxGeometry(4.2, 2.2, 4.2, 2, .8), m.dark); hsg.position.set(x, Y0 - .6, z); group.add(hsg);
+      const wh = mesh(new THREE.CylinderGeometry(1.9, 1.9, 1.6, 24), m.rubber); wh.rotation.z = Math.PI/2; wh.position.set(x, 2, z); group.add(wh);
+      const hub = mesh(new THREE.CylinderGeometry(.8, .8, 1.7, 16), m.metal); hub.rotation.z = Math.PI/2; hub.position.copy(wh.position); group.add(hub);
+    }
+    const pull = new THREE.Group();
+    pull.add(mesh(new RoundedBoxGeometry(2.6, 1.1, 1.6, 2, .4), m.metal));
+    const tab = mesh(new RoundedBoxGeometry(1.2, .35, 3.4, 2, .15), m.metal); tab.position.set(0, .45, 2.2); tab.rotation.x = -.25; pull.add(tab);
+    const tag = mesh(new RoundedBoxGeometry(1.5, .5, 2.2, 2, .2), m.dark); tag.position.set(0, .95, 4.6); tag.rotation.x = -.4; pull.add(tag);
+    group.add(pull);
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({ map:contact, transparent:true, depthWrite:false, opacity:.55 }));
+    blob.rotation.x = -Math.PI/2; blob.position.set(-1, .05, -BACK_D / 2); blob.scale.set(W * 1.55, D * 2.1, 1); group.add(blob);
+    const c = { group, lid, pull, pocketItems, blob };
+    placePull(c, 0);
+    return c;
+  }
+  function placePull(c, u){
+    let d = Math.max(0, Math.min(1, u)) * PLEN;
+    for (const g of segs){
+      if (d <= g.len || g === segs.at(-1)){
+        const [x, y, nx, ny] = g.f(Math.min(d, g.len));
+        c.pull.position.set(x, CY + y, 0); c.pull.rotation.set(0, 0, Math.atan2(ny, nx) - Math.PI/2);
+        return;
+      }
+      d -= g.len;
+    }
+  }
+
+  // ---------- studio lighting (shared by the scene and the bag thumbnails) ----------
+  function studio(r, sc){
+    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = .95;
+    const pm = new THREE.PMREMGenerator(r);
+    sc.environment = pm.fromScene(new RoomEnvironment(r), .04).texture;
+    sc.add(new THREE.HemisphereLight('#ffffff', '#d4d8e0', .55));
+    const key = new THREE.DirectionalLight('#fff8f0', 2.1);
+    key.position.set(-60, 120, 90); key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6; key.shadow.bias = -.0004; key.shadow.normalBias = .02;
+    Object.assign(key.shadow.camera, { left:-100, right:100, top:110, bottom:-70, near:10, far:420 });
+    sc.add(key);
+    const rim = new THREE.DirectionalLight('#eaf0ff', .5); rim.position.set(80, 40, -60); sc.add(rim);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.ShadowMaterial({ opacity:.13 }));
+    floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; sc.add(floor);
+  }
+
+  // ---------- packable objects ----------
+  function makeGarment(color, t){
+    const g = new THREE.Group(), m = fabricMat(color), th = t/2, r = Math.min(.7, th*.46);
+    const c = mesh(new RoundedBoxGeometry(GW, th, GD, 2, r), m); c.position.y = th/2; g.add(c);
+    const L = new THREE.Group(); L.position.set(-GW/2, th, 0);
+    const lm = mesh(new RoundedBoxGeometry(GW/2, th, GD, 2, r), m); lm.position.set(-GW/4, -th/2, 0); L.add(lm);
+    const Rg = new THREE.Group(); Rg.position.set(GW/2, th, 0);
+    const rm = mesh(new RoundedBoxGeometry(GW/2, th, GD, 2, r), m); rm.position.set(GW/4, -th/2, 0); Rg.add(rm);
+    g.add(L, Rg); g.userData.fold = [L, Rg];
+    return g;
+  }
+  const setFold = (g, k) => { const [L, Rg] = g.userData.fold; L.rotation.z = -Math.PI * k; Rg.rotation.z = Math.PI * k * .985; };
+  function makeRoll(color, r){
+    const m = fabricMat(color), cap = mat('cap' + color, () => new THREE.MeshStandardMaterial({ color, roughness:.95, map:spiral }));
+    const o = mesh(new THREE.CylinderGeometry(r, r, RLEN, 28), [m, cap, cap]); o.rotation.x = Math.PI/2;
+    const g = new THREE.Group(); g.add(o); return g;
+  }
+  const SHOES = [['#D9D3C9','#F7F5F1'],['#3A2B22','#2A1F19'],['#6B5A43','#3F352A'],['#C9A27A','#A8845F']];
+  function makeShoes(i){
+    const [up, sole] = SHOES[i % SHOES.length], g = new THREE.Group();
+    const mu = mat('su' + up, () => new THREE.MeshStandardMaterial({ color:up, roughness:.6 }));
+    const ms = mat('ss' + sole, () => new THREE.MeshStandardMaterial({ color: i % 4 === 0 ? '#FFFFFF' : sole, roughness:.7 }));
+    [[IN.z0 + 3.9 - GZ_S, 0], [IN.z0 + 11.4 - GZ_S, Math.PI]].forEach(([z, rot]) => {
+      const s = new THREE.Group(); s.position.z = z; s.rotation.y = rot;
+      const so = mesh(new RoundedBoxGeometry(24, 2, 7.6, 3, .9), ms); so.position.y = 1; s.add(so);
+      const heel = mesh(new RoundedBoxGeometry(14, 5.4, 7.1, 4, 2.4), mu); heel.position.set(-4.5, 4.4, 0); s.add(heel);
+      const toe = mesh(new RoundedBoxGeometry(11, 3.6, 6.9, 4, 1.7), mu); toe.position.set(5.5, 3.4, 0); s.add(toe);
+      const collar = mesh(new RoundedBoxGeometry(6, .8, 4.4, 2, .35), mat('in', () => new THREE.MeshStandardMaterial({ color:'#3A3530', roughness:.9 }))); collar.position.set(-6, 7.1, 0); s.add(collar);
+      g.add(s);
+    });
+    return g;
+  }
+  function makePocket(kind){
+    const g = new THREE.Group();
+    if (kind === 'wash'){ g.add(mesh(new RoundedBoxGeometry(17, 11, 4.4, 4, 1.9), mat('wash', () => new THREE.MeshStandardMaterial({ color:'#2E3B35', roughness:.8, map:fabric }))));
+      const z = mesh(new RoundedBoxGeometry(15, .5, .5, 2, .2), M().teeth); z.position.set(0, 5.2, 0); g.add(z); }
+    if (kind === 'pouch'){ g.add(mesh(new RoundedBoxGeometry(15, 9.5, 3.4, 4, 1.5), mat('pouch', () => new THREE.MeshStandardMaterial({ color:'#CDB999', roughness:.85, map:fabric }))));
+      const tab = mesh(new RoundedBoxGeometry(3, 1.4, .5, 2, .2), mat('lthr', () => new THREE.MeshStandardMaterial({ color:'#7A5238', roughness:.6 }))); tab.position.set(6.4, 4.6, 0); g.add(tab); }
+    if (kind === 'umbrella'){ const b = mesh(new THREE.CylinderGeometry(1.7, 1.5, 23, 20), mat('umb', () => new THREE.MeshStandardMaterial({ color:'#23262B', roughness:.7, map:fabric }))); b.rotation.z = Math.PI/2; g.add(b);
+      const h = mesh(new THREE.CylinderGeometry(1.2, 1.2, 3.4, 16), mat('umbh', () => new THREE.MeshStandardMaterial({ color:'#8A5A3A', roughness:.5 }))); h.rotation.z = Math.PI/2; h.position.x = 13; g.add(h); }
+    if (kind === 'laptop'){ g.add(mesh(new RoundedBoxGeometry(31, 21, 1.8, 2, .8), mat('lap', () => new THREE.MeshStandardMaterial({ color:'#A7ADB2', roughness:.3, metalness:.8 })))); }
+    return g;
+  }
+
+  // ---------- the packing model: what physically sits where ----------
+  let CS = null;          // current case { group, lid, pull, pocketItems, blob }
+  let order = [];
+  const live = new Map();
+  function wantedInstances(){
+    const out = [];
+    for (const id of ORDER){
+      const c = CAT[id], n = S.qty[id] || 0;
+      if (c.vis === 'garment' || c.vis === 'roll' || c.vis === 'shoes') for (let i = 0; i < n; i++) out.push({ key:`${id}#${i}`, id, i, vis:c.vis });
+    }
+    const pocket = { wash:0, pouch:0, umbrella:0, laptop:0 };
+    for (const id of ORDER){ const c = CAT[id]; if (c.vis in pocket && S.qty[id]) pocket[c.vis] += c.kg; }
+    for (const k in pocket) if (pocket[k] > 0) out.push({ key:'pk:' + k, id:k, vis:'pocket', kg:pocket[k] });
+    return out;
+  }
+  function packSequence(list){
+    const shoes = list.filter(x => x.vis === 'shoes');
+    const gar = ['trousers','jacket','blazer','sweater','shirts','tees','shorts','gym','swim'].flatMap(id => list.filter(x => x.vis === 'garment' && x.id === id));
+    const rolls = list.filter(x => x.vis === 'roll'), pk = list.filter(x => x.vis === 'pocket');
+    const seq = [...shoes]; let r = 0;
+    gar.forEach((g, i) => { seq.push(g); if (i % 2 === 1) for (let k = 0; k < 3 && r < rolls.length; k++) seq.push(rolls[r++]); });
+    while (r < rolls.length) seq.push(rolls[r++]);
+    return [...seq, ...pk];
+  }
+  function layout(){
+    const L = {}; let shoesN = 0, rolls = 0;
+    const items = order.filter(k => live.has(k) && !live.get(k).leaving).map(k => live.get(k));
+    items.filter(x => x.vis === 'shoes').forEach(x => { L[x.key] = { p: V(GX, IN.y0 + shoesN*SHOE_H, GZ_S), r: new THREE.Euler(0, 0, 0) }; shoesN++; });
+    const base = IN.y0 + shoesN * SHOE_H;
+    const rawG = items.filter(x => x.vis === 'garment').reduce((s,x) => s + tOf(x.id), 0);
+    const fill = (shoesN * SHOE_H + rawG) / INNER_H;
+    const f = fill > .88 ? Math.max(.9, 1 - (Math.min(fill, 1.05) - .88) * .6) : 1;   // gentle compression when it gets tight
+    let pile = 0, pileR = 0, y = base, yRaw = base;
+    for (const x of items.filter(x => x.vis === 'garment')){
+      const tr = tOf(x.id), t = tr * f, jit = Math.sin(x.key.length * 7.1 + x.i * 3.3);
+      if (yRaw + tr <= IN.y1 + .05){ L[x.key] = { p: V(GX + jit*.35, y, GZ + jit*.3), r: new THREE.Euler(0, jit*.012, 0), s: f }; y += t; yRaw += tr; }
+      else { L[x.key] = { p: V(W/2 + 21 + jit*1.5, pile, 24 + jit), r: new THREE.Euler(0, .35 + jit*.12, 0), s: 1, out:true }; pile += tr; }
+    }
+    for (const x of items.filter(x => x.vis === 'roll')){
+      const row = Math.floor(rolls / 3), col = rolls % 3, r = CAT[x.id].r;
+      const yy = IN.y0 + row * ROWH + r;
+      if (yy + r <= IN.y1 + .05) L[x.key] = { p: V(RCOL[col] + (row % 2 ? .25 : -.25), yy, RZ), r: new THREE.Euler(0, 0, row + col) };
+      else { L[x.key] = { p: V(W/2 + 13 + (pileR % 3) * 3.6, 1.8 + Math.floor(pileR/3) * 3.3, 40), r: new THREE.Euler(0, .2, pileR), out:true }; pileR++; }
+      rolls++;
+    }
+    for (const x of items.filter(x => x.vis === 'pocket')) L[x.key] = { p: POCKET[x.id].p.clone(), r: POCKET[x.id].r.clone(), lid:true };
+    const leftH = shoesN * SHOE_H + rawG, rightH = Math.ceil(rolls / 3) * ROWH;
+    return { L, fill: Math.max(leftH, rightH) / INNER_H, overflow: pile > 0 || pileR > 0 };
+  }
+
+  // ---------- item motion ----------
+  function spawn(inst){
+    let obj; const c = CAT[inst.id];
+    if (inst.vis === 'garment') obj = makeGarment(c.colors[inst.i % c.colors.length], tOf(inst.id));
+    else if (inst.vis === 'roll') obj = makeRoll(c.colors[inst.i % c.colors.length], c.r);
+    else if (inst.vis === 'shoes') obj = makeShoes(inst.i);
+    else obj = makePocket(inst.id);
+    obj.visible = false; scene.add(obj);
+    const it = { ...inst, obj, kg: inst.kg ?? c.kg };
+    live.set(inst.key, it); return it;
+  }
+  function onLand(it){ kick(it.vis === 'shoes' ? .9 : it.vis === 'pocket' ? .35 : .45); stats.add(it); }
+  const bez = (a, b, c, d, t) => { const u = 1 - t; return a.clone().multiplyScalar(u*u*u).add(b.clone().multiplyScalar(3*u*u*t)).add(c.clone().multiplyScalar(3*u*t*t)).add(d.clone().multiplyScalar(t*t*t)); };
+  const qFrom = e => new THREE.Quaternion().setFromEuler(e);
+  function enter(it, target, delay, speed = 1){
+    const o = it.obj, T = target.p.clone(), K = { x: W/2, top: Y0 + H };
+    if (target.lid) return enterPocket(it, target, delay, speed);
+    const fly = 950 / speed, settle = 420;
+    let p0, p1, p2, q0, q1 = qFrom(target.r), drop;
+    if (it.vis === 'garment'){
+      p0 = V(K.x + 45, K.top + 15, 22); p1 = V(K.x + 7, K.top + 31, 26); p2 = V(T.x, T.y + 24, T.z + 20); drop = 2.2;
+      q0 = qFrom(new THREE.Euler(1.2, .45, -.25)); setFold(o, 0);
+      if (target.s) o.scale.y = target.s;
+    } else if (it.vis === 'roll'){
+      p0 = V(K.x + 33, K.top + 19, 8); p1 = V(T.x + 12, T.y + 30, T.z + 8); p2 = V(T.x, T.y + 16, T.z); drop = 1.6;
+      q0 = qFrom(new THREE.Euler(0, 0, target.r.z + 5));
+    } else { // shoes slide into the bottom
+      p0 = V(K.x + 41, T.y + 22, 34); p1 = V(K.x + 7, T.y + 14, 34); p2 = V(T.x + 8, T.y + 3, T.z + 18); drop = 1.2;
+      q0 = qFrom(new THREE.Euler(.1, -.9, .15));
+    }
+    const pEnd = T.clone(), pLand = pEnd.clone().add(V(0, drop, 0));
+    return tween(fly, (e, raw) => {
+      o.visible = true;
+      o.position.copy(bez(p0, p1, p2, pLand, e));
+      o.quaternion.copy(q0).slerp(q1, E.inOut(Math.min(1, raw * 1.15)));
+      if (it.vis === 'garment') setFold(o, E.inOut(Math.min(1, Math.max(0, (raw - .08) / .5))));
+    }, { delay, ease: E.inOut }).then(() => tween(settle, (e, raw) => {
+      o.position.y = lerp(pLand.y, pEnd.y, E.land(raw));
+      if (it.vis === 'garment'){ const sq = Math.sin(raw * Math.PI) * .08 * (1 - raw); o.scale.y = (target.s || 1) * (1 - sq); }
+      if (!it.landed && raw > .22){ it.landed = true; onLand(it); }
+    })).then(() => { it.placed = target; });
+  }
+  function enterPocket(it, target, delay, speed = 1){
+    const o = it.obj, dur = 1050 / speed, K = { x: W/2, top: Y0 + H };
+    const p0 = V(K.x + 39, K.top + 3, 44), q0 = qFrom(new THREE.Euler(.3, -.8, .2)), lq = qFrom(target.r);
+    return tween(dur, (e, raw) => {
+      o.visible = true; CS.lid.updateMatrixWorld();
+      const wp = target.p.clone().applyMatrix4(CS.lid.matrixWorld);
+      const wq = CS.lid.getWorldQuaternion(new THREE.Quaternion()).multiply(lq);
+      o.position.copy(bez(p0, V(K.x + 15, K.top + 9, 40), wp.clone().add(V(8, 4, 10)), wp, e));
+      o.quaternion.copy(q0).slerp(wq, E.inOut(raw));
+      if (!it.landed && raw > .96){ it.landed = true; onLand(it); }
+    }, { delay, ease: E.inOut }).then(() => { CS.pocketItems.attach(o); it.placed = target; });
+  }
+  function leave(it){
+    it.leaving = true; const o = it.obj;
+    if (o.parent !== scene) scene.attach(o);
+    const p0 = o.position.clone(), p1 = p0.clone().add(V(4, 14, 16)), p2 = V(W/2 + 27, p0.y + 30, 36), p3 = V(W/2 + 59, p0.y + 26, 30);
+    const q0 = o.quaternion.clone(), q1 = qFrom(new THREE.Euler(.9, .6, -.3));
+    stats.remove(it);
+    return tween(820, (e, raw) => {
+      o.position.copy(bez(p0, p1, p2, p3, e)); o.quaternion.copy(q0).slerp(q1, raw);
+      if (it.vis === 'garment') setFold(o, 1 - E.inOut(Math.max(0, (raw - .35) / .65)) * .6);
+    }, { ease: E.in }).then(() => { scene.remove(o); live.delete(it.key); order = order.filter(k => k !== it.key); });
+  }
+  function moveTo(it, target){
+    const o = it.obj;
+    if (target.lid) return;
+    if (o.parent !== scene) scene.attach(o);
+    const p0 = o.position.clone(), q0 = o.quaternion.clone(), q1 = qFrom(target.r), s0 = o.scale.y, s1 = target.s || 1;
+    if (p0.distanceTo(target.p) < .02 && Math.abs(s0 - s1) < .005) return;
+    const wasOut = it.placed?.out, goingOut = target.out;
+    it.placed = target;
+    if (wasOut !== goingOut){ // hop over the rim onto the table (or back in)
+      const mid = p0.clone().lerp(target.p, .5).add(V(0, 16, 14));
+      return tween(900, (e, raw) => { o.position.copy(bez(p0, mid, mid, target.p, e)); o.quaternion.copy(q0).slerp(q1, raw); o.scale.y = lerp(s0, s1, raw); }, { ease:E.inOut }).then(() => kick(.2));
+    }
+    const falling = target.p.y < p0.y;
+    return tween(falling ? 620 : 520, e => {
+      o.position.lerpVectors(p0, target.p, e); o.quaternion.copy(q0).slerp(q1, Math.min(1, e)); o.scale.y = lerp(s0, s1, Math.min(1, e));
+    }, { ease: falling ? E.land : E.out, delay: falling ? (60 + Math.random()*80) : 0 });
+  }
+
+  // ---------- stats (live, tied to what has actually landed) ----------
+  const stats = {
+    kg: 0, packed: new Set(), fill: 0,
+    reset(){ this.kg = bag().kg; this.packed.clear(); this.render(); },
+    add(it){ if (this.packed.has(it.key)) return; this.packed.add(it.key); this.kg += it.kg; this.render(); },
+    remove(it){ if (!this.packed.delete(it.key)) return; this.kg -= it.kg; this.render(); },
+    sync(){ this.kg = totalKg(); this.render(); },
+    render(){
+      let shoes = 0, g = 0, r = 0;
+      for (const k of this.packed){ const it = live.get(k); if (!it) continue;
+        if (it.vis === 'shoes') shoes++; else if (it.vis === 'garment') g += tOf(it.id); else if (it.vis === 'roll') r++; }
+      const fill = Math.max(shoes * SHOE_H + g, Math.ceil(r/3) * ROWH) / INNER_H;
+      const kg = Math.max(bag().kg, this.kg), lim = bag().limit;
+      roll($('kg'), kg.toFixed(1)); roll($('pct'), String(Math.round(fill * 100)));
+      $('kgNote').textContent = kg > lim + 1e-6 ? `${(kg - lim).toFixed(1)} kg over the ${lim} kg limit` : 'approx. packed weight';
+      $('kgNote').style.color = kg > lim + 1e-6 ? 'var(--orange)' : '';
+      const arc = $('gArc');
+      arc.style.strokeDashoffset = 69.2 * (1 - Math.min(1, fill));
+      arc.style.stroke = fill > 1.0001 ? 'var(--orange)' : fill > .85 ? 'var(--amber)' : 'var(--blue)';
+      this.fill = fill;
+    },
+  };
+
+  // ---------- camera: fixed angle, frames what matters ----------
+  const AZ = THREE.MathUtils.degToRad(21), EL = THREE.MathUtils.degToRad(10);
+  const DIR = V(Math.sin(AZ)*Math.cos(EL), Math.sin(EL), Math.cos(AZ)*Math.cos(EL));
+  const cam = { target: V(0, 30, 0), dist: 200 };
+  let region = { top: 300, bottom: 110 };
+  function fitBox(box, cw, ch, reg, fov){
+    const ny0 = 1 - 2 * (ch - reg.bottom) / ch, ny1 = 1 - 2 * reg.top / ch, nx0 = -1 + 2 * (reg.side ?? 22) / cw, nx1 = 1 - 2 * (reg.side ?? 22) / cw;
+    const pts = []; for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) pts.push(V(x,y,z));
+    const c = new THREE.PerspectiveCamera(fov, cw / ch, 1, 2000);
+    let T = box.getCenter(V()), d = 220;
+    for (let i = 0; i < 8; i++){
+      c.position.copy(T).addScaledVector(DIR, d); c.lookAt(T); c.updateMatrixWorld(); c.updateProjectionMatrix();
+      let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+      for (const p of pts){ const q = p.clone().project(c); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+      const k = Math.max((x1 - x0) / (nx1 - nx0), (y1 - y0) / (ny1 - ny0));
+      const halfH = d * Math.tan(THREE.MathUtils.degToRad(c.fov / 2)), halfW = halfH * c.aspect;
+      const right = V(1,0,0).applyQuaternion(c.quaternion), up = V(0,1,0).applyQuaternion(c.quaternion);
+      T.addScaledVector(right, ((x0 + x1) / 2 - (nx0 + nx1) / 2) * halfW).addScaledVector(up, ((y0 + y1) / 2 - (ny0 + ny1) / 2) * halfH);
+      d *= lerp(1, k, .85);
+    }
+    return { target: T, dist: d };
+  }
+  const closedBox = () => new THREE.Box3(V(-W/2 - 3, 0, -BACK_D - 2), V(W/2 + 4, Y0 + H + 4, LID_D + 3));
+  let camTween = null;
+  function frame(state, dur = 1300){
+    const b = closedBox();
+    if (state !== 'closed'){ b.expandByPoint(V(-W/2 - W * .45, 0, W * 1.05)); b.expandByPoint(V(W/2 + 3, 0, 14)); }
+    if (state === 'overflow') b.expandByPoint(V(W/2 + 33, 0, 46));
+    const to = fitBox(b, canvas.clientWidth, canvas.clientHeight, region, camera.fov), from = { target: cam.target.clone(), dist: cam.dist };
+    const id = camTween = {};
+    if (!dur){ cam.target.copy(to.target); cam.dist = to.dist; return; }
+    tween(dur, e => { if (camTween !== id) return; cam.target.lerpVectors(from.target, to.target, e); cam.dist = lerp(from.dist, to.dist, e); }, { ease: E.inOut });
+  }
+
+  // ---------- lid + zipper choreography ----------
+  let lidAngle = 0, isOpen = false;
+  const OPEN = -THREE.MathUtils.degToRad(104);
+  const setLid = a => { lidAngle = a; CS.lid.rotation.y = a; };
+  async function unzip(fast){
+    await tween(fast ? 520 : 1150, e => placePull(CS, e), { ease: E.inOut });
+    await tween(220, e => setLid(-.05 * Math.sin(e * Math.PI / 2)), { ease: E.out });     // unlatch pop
+  }
+  async function openLid(fast){
+    const a0 = lidAngle;
+    await tween(fast ? 700 : 1150, e => setLid(lerp(a0, OPEN, e)), { ease: t => 1 - Math.exp(-5.2*t) * Math.cos(3.2*t) * (1 - t) });
+    isOpen = true;
+  }
+  async function closeLid(fast){
+    const a0 = lidAngle;
+    await tween(fast ? 620 : 900, e => setLid(lerp(a0, 0, e)), { ease: t => t < .82 ? E.inOut(t / .82) * .995 : .995 + (t - .82) / .18 * .005 });
+    kick(1.1); isOpen = false;
+    await tween(fast ? 520 : 950, e => placePull(CS, 1 - e), { ease: E.inOut });
+  }
+
+  // ---------- flow ----------
+  const ui = { head:$('pkHead'), bag:$('pkBag'), cards:$('pkCards'), verdict:$('pkVerdict'), cap:$('pkCaption'), sheet:$('pkSheet'), replay:$('pkReplay') };
+  let session = 0, busy = Promise.resolve(), closeTimer = null, caseFor = null;
+  function useBag(){
+    if (caseFor === S.bag && !bag().custom) return;
+    if (CS) scene.remove(CS.group);
+    setDims(bag()); CS = makeCase(bag().color); scene.add(CS.group); caseFor = S.bag;
+  }
+  function reset(){
+    for (const it of live.values()) it.obj.parent && it.obj.parent.remove(it.obj);
+    live.clear(); order = []; tweens.length = 0;
+    useBag();
+    setLid(0); placePull(CS, 0); isOpen = false;
+    CS.group.position.set(0, 0, 0); CS.group.rotation.set(0, 0, 0);
+    stats.reset();
+    ui.head.classList.remove('gone'); ui.bag.classList.remove('on'); ui.cards.classList.remove('on'); ui.verdict.classList.remove('on'); ui.replay.classList.remove('on');
+    ui.cap.classList.add('gone'); ui.sheet.className = 'pk-sheet';
+    const b = bag();
+    $('pkCount').textContent = `${itemCount()} Items`; $('pkLimit').textContent = `${b.limit} kg ${b.short}`;
+    $('pkBagName').textContent = b.name; $('pkBagDims').textContent = dimsTxt(b); $('pkBagVol').textContent = `~${b.L}L`;
+    $('pkThumb').src = thumbs()[S.bag] || '';
+    region = { top: 300, bottom: 70 }; frame('closed', 0);
+  }
+  function verdict(){
+    const kg = totalKg(), lay = layout(), lim = bag().limit, over = kg > lim + 1e-6, full = lay.overflow, ok = !over && !full;
+    const outN = Object.values(lay.L).filter(x => x.out).length;
+    ui.verdict.classList.toggle('bad', !ok);
+    $('pkVIcon').innerHTML = ok ? '<svg width="12" height="12" viewBox="0 0 14 14"><path d="m3 7.3 2.6 2.6L11 4.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 14 14"><path d="M7 3.5v4.2M7 10.3v.2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>';
+    $('pkVText').textContent = ok ? `Fits your ${bag().short}` : full ? `${outN} item${outN === 1 ? '' : 's'} won’t fit — try a bigger bag` : `Over the weight limit — you may need a checked bag`;
+  }
+  async function run(){
+    const my = ++session;
+    reset();
+    CS.group.position.y = 16; CS.group.rotation.z = .04;
+    await tween(900, (e, raw) => { CS.group.position.y = 16 * (1 - E.land(raw)); CS.group.rotation.z = .04 * (1 - E.out(raw)); CS.blob.material.opacity = .55 * E.out(raw); });
+    kick(1.2);
+    await wait(900); if (my !== session) return;
+    ui.head.classList.add('gone');
+    region = { top: ST + 200, bottom: 110 };
+    ui.cards.classList.add('on'); ui.cards.style.top = (ST + 88) + 'px';
+    await wait(200);
+    await unzip(); if (my !== session) return;
+    frame('open', 1300);
+    await openLid(); if (my !== session) return;
+
+    const seq = packSequence(wantedInstances());
+    order = seq.map(x => x.key); seq.forEach(spawn);
+    const lay = layout();
+    ui.cap.classList.remove('gone');
+    const counts = {}; let t = 0; const jobs = [];
+    seq.forEach(x => {
+      const it = live.get(x.key), target = lay.L[x.key];
+      const gap = x.vis === 'roll' ? 150 : x.vis === 'shoes' ? 520 : x.vis === 'pocket' ? 420 : 330;
+      jobs.push(enter(it, target, t));
+      const name = x.vis === 'pocket' ? { wash:'Toiletries', pouch:'Essentials pouch', umbrella:'Umbrella', laptop:'Laptop' }[x.id] : CAT[x.id].name;
+      const total = x.vis === 'pocket' ? 1 : (S.qty[x.id] || 0);
+      setTimeout(() => { if (my !== session) return; counts[name] = (counts[name] || 0) + 1; $('capName').textContent = name; $('capCount').textContent = total > 1 ? `${counts[name]} of ${total}` : ''; }, t + 200);
+      t += gap;
+    });
+    if (lay.overflow) setTimeout(() => my === session && frame('overflow', 1100), t * .7);
+    await Promise.all(jobs); if (my !== session) return;
+    ui.cap.classList.add('gone');
+    await wait(350);
+    frame(lay.overflow ? 'overflow' : 'closed', 1200);
+    await closeLid(); if (my !== session) return;
+    stats.sync();
+    // settle into the result layout from the design
+    ui.cards.style.top = ''; ui.bag.classList.add('on'); ui.replay.classList.add('on');
+    // fit the result layout to the screen: the sheet gives up height before the suitcase does
+    const vh = phone.clientHeight, peek = Math.round(Math.max(150, Math.min(308, vh - (ST + 342) - 230)));
+    ui.sheet.style.setProperty('--peek', peek + 'px'); ui.sheet.style.height = Math.min(560, vh - 130) + 'px';
+    region = { top: ST + 342, bottom: peek + 10 }; frame(lay.overflow ? 'overflow' : 'closed', 900);
+    renderRows(); ui.sheet.classList.add('peek');
+    await wait(380); if (my !== session) return;
+    verdict(); ui.verdict.classList.add('on');
+  }
+
+  // ---------- editing after the fact ----------
+  function renderRows(){
+    const box = $('pkRows');
+    box.innerHTML = groupsHTML(id => (S.qty[id] || 0) > 0 || listShown.has(id));
+    box.querySelectorAll('[data-n]').forEach(el => roll(el, String(S.qty[el.dataset.n] || 0)));
+  }
+  bindQty($('pkRows'), id => {
+    refreshRow($('pkRows'), id);
+    const my = session;
+    ui.verdict.classList.remove('on');
+    clearTimeout(closeTimer);
+    busy = busy.then(async () => {
+      if (my !== session) return;
+      if (!isOpen){ frame('open', 900); await unzip(true); await openLid(true); }
+      const want = wantedInstances(), wantKeys = new Set(want.map(x => x.key)), jobs = [];
+      for (const it of [...live.values()]) if (!it.leaving && !wantKeys.has(it.key)) jobs.push(leave(it));
+      for (const x of want) if (x.vis === 'pocket' && live.has(x.key)){ const it = live.get(x.key); if (Math.abs(it.kg - x.kg) > 1e-6){ stats.kg += x.kg - it.kg; it.kg = x.kg; stats.render(); } }
+      const fresh = want.filter(x => !live.has(x.key));
+      fresh.forEach(x => { order.push(x.key); spawn(x); });
+      if (jobs.length) await wait(260);
+      const lay = layout();
+      for (const it of live.values()) if (!it.leaving && it.placed && lay.L[it.key]) moveTo(it, lay.L[it.key]);
+      fresh.forEach((x, i) => jobs.push(enter(live.get(x.key), lay.L[x.key], i * 160, 1.25)));
+      frame(lay.overflow ? 'overflow' : 'open', 800);
+      await Promise.all(jobs);
+    });
+    closeTimer = setTimeout(() => {
+      busy = busy.then(async () => {
+        if (my !== session) return;
+        frame(layout().overflow ? 'overflow' : 'closed', 1000);
+        await closeLid(true);
+        stats.sync(); verdict(); ui.verdict.classList.add('on');
+      });
+    }, 1500);
+  });
+  (() => { // sheet: tap / drag between peek and full
+    const sh = ui.sheet, grab = $('pkGrab'); let y0 = null, moved = 0;
+    grab.addEventListener('pointerdown', e => { y0 = e.clientY; moved = 0; grab.setPointerCapture(e.pointerId); });
+    grab.addEventListener('pointermove', e => { if (y0 !== null) moved = e.clientY - y0; });
+    grab.addEventListener('pointerup', () => {
+      if (y0 === null) return; y0 = null;
+      const full = Math.abs(moved) < 6 ? !sh.classList.contains('full') : moved < 0;
+      sh.classList.toggle('full', full); sh.classList.toggle('peek', !full);
+    });
+  })();
+  $('pkReplay').addEventListener('click', () => { busy = Promise.resolve(); clearTimeout(closeTimer); run(); });
+  $('pkClose').addEventListener('click', back);
+  $('pkChange').addEventListener('click', back);
+
+  // ---------- bag thumbnails, rendered from the same model ----------
+  let thumbCache = {};
+  function thumbs(){
+    if (thumbCache.carry && !BAGS.own._dirty) return thumbCache;
+    makeTextures();
+    const r = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+    const cw = 240, ch = 300; r.setPixelRatio(2); r.setSize(cw, ch, false);
+    const sc = new THREE.Scene(); studio(r, sc);
+    const cmr = new THREE.PerspectiveCamera(24, cw / ch, 1, 3000);
+    for (const k of Object.keys(BAGS)){
+      setDims(BAGS[k]); const c = makeCase(BAGS[k].color); sc.add(c.group);
+      const f = fitBox(closedBox(), cw, ch, { top: 8, bottom: 8, side: 8 }, 24);
+      cmr.position.copy(f.target).addScaledVector(DIR, f.dist); cmr.lookAt(f.target);
+      r.render(sc, cmr); thumbCache[k] = r.domElement.toDataURL('image/png');
+      sc.remove(c.group);
+    }
+    r.dispose(); r.forceContextLoss();
+    if (CS) setDims(bag());
+    return thumbCache;
+  }
+
+  // ---------- renderer ----------
+  function build(){
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    scene = new THREE.Scene(); studio(renderer, scene);
+    camera = new THREE.PerspectiveCamera(24, 1, 1, 3000);
+    makeTextures();
+    built = true;
+  }
+  function resize(){
+    const w = canvas.clientWidth, h = canvas.clientHeight; if (!w) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  let last = now();
+  function loop(){
+    if (!running) return;
+    const t = now(), dt = Math.min(.05, (t - last) / 1000); last = t;
+    for (let i = tweens.length - 1; i >= 0; i--){
+      const w = tweens[i]; if (t < w.t0) continue;
+      const raw = Math.min(1, (t - w.t0) / w.dur); w.update(w.ease(raw), raw);
+      if (raw >= 1){ tweens.splice(i, 1); w.res(); }
+    }
+    for (let k = 0; k < 4; k++){ const a = -260 * bump.x - 22 * bump.v; bump.v += a * dt/4; bump.x += bump.v * dt/4; }
+    const sink = Math.max(-.6, Math.min(.3, bump.x * .06));
+    if (CS) CS.group.scale.set(1 - sink * .15, 1 + sink * .4, 1);
+    camera.position.copy(cam.target).addScaledVector(DIR, cam.dist); camera.lookAt(cam.target);
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+  addEventListener('resize', () => built && resize());
+  return {
+    thumbs,
+    enter(){
+      if (!built) build();
+      resize(); running = true; last = now(); requestAnimationFrame(loop);
+      clearTimeout(closeTimer); busy = Promise.resolve();
+      setTimeout(run, 420);
+    },
+    leave(){ session++; clearTimeout(closeTimer); setTimeout(() => { running = false; }, 520); },
+  };
+})();
+
+/* ---------- boot ---------- */
+// offline + installable (service workers only run on https or localhost)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+renderWhen();
+// deep links for demos: #when, #acts, #list, #bag, #pack&bag=medium&jacket=3
+const h = location.hash.slice(1);
+if (h){
+  const [screen, ...rest] = h.split('&'), p = new URLSearchParams(rest.join('&'));
+  const path = ['when','acts','list','bag','pack'];
+  if (path.includes(screen)){
+    ensureList();
+    if (p.get('bag') in BAGS) S.bag = p.get('bag');
+    for (const [k, v] of p) if (k in CAT) S.qty[k] = +v;
+    for (const id of path.slice(0, path.indexOf(screen) + 1)){
+      const sc = screens[id];
+      Object.values(screens).forEach(s => s.classList.remove('active','behind'));
+      sc.classList.add('active'); stack.push({ id, mode: id === 'when' ? 'morph' : id === 'pack' ? 'up' : 'push' });
+    }
+    setTone(screen); onEnter(screen);
+  }
+}
+</script>
+</body>
+</html>
