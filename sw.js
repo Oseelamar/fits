@@ -1,11 +1,11 @@
 // Offline support: keep the app shell, images, Three.js and the font so it opens without a connection.
 // Bump VERSION whenever index.html or assets change so installed copies pick up the update.
-const VERSION = 'fits-v6';
+const VERSION = 'fits-v7';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './assets/globe.png', './assets/paris.png', './assets/tokyo.png', './assets/newyork.png',
   './assets/act-city.png', './assets/act-dinner.png', './assets/act-beach.png',
-  './assets/act-hiking.png', './assets/act-business.png', './assets/act-gym.png',
+  './assets/act-hiking.png', './assets/act-business.png', './assets/act-gym.png', './assets/act-glow.svg', './assets/check.svg',
   './assets/icon-192.png', './assets/icon-512.png', './assets/apple-touch-icon.png',
 ];
 

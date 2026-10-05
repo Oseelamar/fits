@@ -20,7 +20,7 @@
 
   :root{
     --st:62px;   /* top inset in design pt: phone frame & installed app = status bar; browser tab = small */
-    --sb:26px;   /* bottom inset in design pt */
+    --sb:40px;   /* bottom inset in design pt (Figma: CTA bottom sits 56pt above the frame edge) */
     --bg:#F3F4F6;
     --bg-2:#EEF1F4;
     --card:#FFFFFF;
@@ -29,7 +29,7 @@
     --ink-3:#A3A6AD;
     --line:rgba(28,28,30,.09);
     --chip:#E4E6EA;
-    --blue:#3478F6;
+    --blue:#3374FC;
     --sky:#3F8AFB;
     --blue-soft:#DDE8FB;
     --orange:#FF6B2C;
@@ -74,7 +74,7 @@
   .safe{height:var(--st);flex:none}
 
   /* ---------- shared ---------- */
-  .nav{height:52px;flex:none;display:flex;align-items:center;padding:0 22px;margin-top:12px}
+  .nav{height:40px;flex:none;display:flex;align-items:center;padding:0 22px;margin-top:12px}
   .round{width:40px;height:40px;border-radius:50%;background:var(--chip);display:grid;place-items:center;transition:transform .35s var(--spring),background .2s}
   .round.lg{width:48px;height:48px}
   .round:active{transform:scale(.9)}
@@ -83,9 +83,8 @@
   .pad{padding:0 22px}
   h1{font-size:36px;line-height:1.12;font-weight:700;letter-spacing:-.035em}
   .dock{flex:none;padding:16px 22px calc(var(--sb) + 16px)}
-  .cta{width:100%;height:60px;border-radius:30px;background:var(--blue);color:#fff;font-size:18px;font-weight:600;
-    display:flex;align-items:center;justify-content:center;gap:10px;transition:transform .35s var(--spring),opacity .2s,background .2s;
-    box-shadow:0 10px 24px -12px rgba(52,120,246,.7)}
+  .cta{width:100%;height:59px;border-radius:33px;background:var(--blue);color:#fff;font-size:18px;font-weight:700;letter-spacing:-.45px;
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .35s var(--spring),opacity .2s,background .2s}
   .cta:active{transform:scale(.97);background:#2B6AE0}
   .cta svg{transition:transform .35s var(--spring)}
   .cta:active svg{transform:translateX(3px)}
@@ -177,19 +176,24 @@
   .summary .w small{display:block;font-size:14px;color:#55514B;margin-top:3px}
 
   /* ---------- 03 · activities ---------- */
-  #s-acts{background:var(--bg-2)}
-  .acts{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 22px;margin-top:40px}
-  .act{position:relative;height:148px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;border-radius:20px;background:#fff;overflow:hidden;text-align:left;padding:14px 16px;
-    box-shadow:inset 0 0 0 0 var(--blue);transition:box-shadow .35s var(--ease),transform .35s var(--spring)}
+  #s-acts{background:#F0F3F4}
+  #s-acts h1{color:#1A1C1F;font-size:36px;line-height:1.2;letter-spacing:-1.44px;max-width:324px}
+  .acts{display:grid;grid-template-columns:190px 190px;gap:16px;padding:0 22px;margin-top:40px}
+  .act{position:relative;width:190px;height:148px;display:block;border-radius:20px;background:#fff;overflow:hidden;text-align:left;transition:transform .35s var(--spring)}
   .act:active{transform:scale(.96)}
-  .act b{position:relative;z-index:1;display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;line-height:1.2;max-width:70%}
-  .act .box{position:absolute;right:16px;top:14px;width:20px;height:20px;border-radius:6px;background:#E2E4E8;display:grid;place-items:center;z-index:1;transition:background .3s,transform .4s var(--spring)}
-  .act .box svg{opacity:0;transform:scale(.4);transition:all .35s var(--spring)}
-  .act img{position:absolute;right:0;bottom:0;max-height:104px;max-width:62%;mix-blend-mode:multiply;transition:transform .55s var(--spring)}
-  .act.on{box-shadow:inset 0 0 0 2px var(--blue)}
-  .act.on .box{background:var(--blue);transform:scale(1.08)}
-  .act.on .box svg{opacity:1;transform:none}
-  .act.on img{transform:scale(1.07) translate(-2px,-3px) rotate(-3deg)}
+  .act b{position:absolute;left:16px;top:14px;z-index:2;display:block;font-size:18px;font-weight:600;letter-spacing:-.45px;line-height:1.28;color:#000;white-space:nowrap}
+  .act b.wrap{white-space:normal}
+  /* selected: soft orange wash rising from the bottom of the card (Figma 2:327) */
+  .act .glow{position:absolute;left:calc(50% + .5px);top:54px;width:211px;height:102px;transform:translateX(-50%) scaleX(-1);opacity:0;transition:opacity .35s ease;pointer-events:none;z-index:0}
+  .act .glow img{position:absolute;left:-20.9px;top:-20.9px;width:252.8px;height:143.8px;max-width:none;display:block}
+  .act .obj{position:absolute;z-index:1;display:block;max-width:none;pointer-events:none}
+  /* checkbox: grey when off, orange with white tick when on (Figma 2:158 / 2:330) */
+  .act .box{position:absolute;left:156px;top:14px;z-index:3;width:20px;height:20px;border-radius:6px;background:#E4E3E3;border:.5px solid #D0D0D0;display:grid;place-items:center;overflow:hidden;
+    transition:background .25s,border-color .25s,box-shadow .25s,transform .4s var(--spring)}
+  .act .box img{width:9.985px;height:7.157px;margin-left:.5px;opacity:0;transform:scale(.4);transition:opacity .2s,transform .35s var(--spring)}
+  .act.on .glow{opacity:1}
+  .act.on .box{background:#FF6924;border-color:#D54F12;box-shadow:inset 0 -2px 4px 0 #D24605,inset 0 2px 4px 0 rgba(255,197,170,.5);transform:scale(1.06)}
+  .act.on .box img{opacity:1;transform:none}
 
   /* ---------- 04 · packing list ---------- */
   .meta{display:flex;flex-wrap:wrap;gap:8px;padding:0 22px;margin-top:20px}
@@ -390,7 +394,7 @@
     <div class="safe"></div>
     <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
     <div class="scroll">
-      <h1 class="pad" style="margin-top:28px">What are you<br>getting up to?</h1>
+      <h1 class="pad" style="margin-top:36px">What are you<br>getting up to?</h1>
       <div class="acts" id="acts"></div>
     </div>
     <div class="dock"><button class="cta" id="actsNext">Continue <svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
@@ -401,7 +405,7 @@
     <div class="safe"></div>
     <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
     <div class="scroll" id="listScroll">
-      <h1 class="pad" style="margin-top:28px">Choose your<br>packing list</h1>
+      <h1 class="pad" style="margin-top:36px">Choose your<br>packing list</h1>
       <div class="meta" id="listMeta"></div>
       <div id="groups"></div>
       <div class="pad"><button class="add" id="addItem"><i><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i>Add an item</button></div>
@@ -415,7 +419,7 @@
     <div class="safe"></div>
     <div class="nav"><button class="round" data-back aria-label="Back"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
     <div class="scroll">
-      <h1 class="pad" style="margin-top:28px">What bag<br>are you taking?</h1>
+      <h1 class="pad" style="margin-top:36px">What bag<br>are you taking?</h1>
       <div class="bags" id="bags"></div>
     </div>
   </section>
@@ -878,13 +882,26 @@ $('dTo').addEventListener('click', () => openCal('end'));
 /* ================================================================
    03 · Activities
    ================================================================ */
-$('acts').innerHTML = ACTS.map(a => `<button class="act ${S.acts.has(a.id)?'on':''}" data-id="${a.id}"><b>${a.name.replace(' & ', ' &amp;<br>')}</b>
-  <span class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-  <img src="assets/${a.img}.png" alt=""></button>`).join('');
+// object placement per card, straight from Figma (right/bottom offsets, size, tilt)
+const ACT_ART = {
+  city:     { r:-5,     b:-16,    w:116.182, h:119 },
+  dinner:   { r:-1.11,  b:-6.58,  w:78.869,  h:96.359, rot:-6 },
+  beach:    { r:-6,     b:-2,     w:107,     h:95 },
+  hiking:   { r:-9.39,  b:-12.6,  w:111.884, h:99.142, rot:-5 },
+  business: { r:-3,     b:-11,    w:104,     h:96 },
+  gym:      { r:-16,    b:-15,    w:131,     h:89 },
+};
+const ACT_WRAP = { city:83, dinner:102 };   // these two titles wrap at Figma's text-box width
+$('acts').innerHTML = ACTS.map(a => { const o = ACT_ART[a.id];
+  return `<button class="act ${S.acts.has(a.id)?'on':''}" data-id="${a.id}" aria-pressed="${S.acts.has(a.id)}">
+  <span class="glow"><img src="assets/act-glow.svg" alt=""></span>
+  <b class="${ACT_WRAP[a.id] ? 'wrap' : ''}" style="${ACT_WRAP[a.id] ? `width:${ACT_WRAP[a.id]}px` : ''}">${a.name.replace('&', '&amp;')}</b>
+  <img class="obj" src="assets/${a.img}.png" alt="" style="right:${o.r}px;bottom:${o.b}px;width:${o.w}px;height:${o.h}px;${o.rot ? `transform:rotate(${o.rot}deg)` : ''}">
+  <span class="box"><img src="assets/check.svg" alt=""></span></button>`; }).join('');
 $('acts').addEventListener('click', e => {
   const b = e.target.closest('.act'); if (!b) return;
   const id = b.dataset.id; S.acts.has(id) ? S.acts.delete(id) : S.acts.add(id);
-  b.classList.toggle('on', S.acts.has(id)); vibrate(5);
+  b.classList.toggle('on', S.acts.has(id)); b.setAttribute('aria-pressed', S.acts.has(id)); vibrate(5);
 });
 $('actsNext').addEventListener('click', () => go('list'));
 
@@ -1645,6 +1662,7 @@ if (h){
   if (path.includes(screen)){
     ensureList();
     if (p.get('bag') in BAGS) S.bag = p.get('bag');
+    if (p.has('acts')){ S.acts = new Set(p.get('acts').split(',').filter(Boolean)); document.querySelectorAll('.act').forEach(b => b.classList.toggle('on', S.acts.has(b.dataset.id))); }
     for (const [k, v] of p) if (k in CAT) S.qty[k] = +v;
     for (const id of path.slice(0, path.indexOf(screen) + 1)){
       const sc = screens[id];
