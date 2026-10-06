@@ -1,16 +1,17 @@
 // Offline support: keep the app shell, images, Three.js and the font so it opens without a connection.
 // Bump VERSION whenever index.html or assets change so installed copies pick up the update.
-const VERSION = 'fits-v7';
+const VERSION = 'fits-v8';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './assets/globe.png', './assets/paris.png', './assets/tokyo.png', './assets/newyork.png',
-  './assets/act-city.png', './assets/act-dinner.png', './assets/act-beach.png',
-  './assets/act-hiking.png', './assets/act-business.png', './assets/act-gym.png', './assets/act-glow.svg', './assets/check.svg',
+  './assets/activity-city.png', './assets/activity-dinner.png', './assets/activity-beach.png',
+  './assets/activity-hiking.png', './assets/activity-business.png', './assets/activity-gym.png', './assets/act-glow.svg', './assets/check.svg',
   './assets/icon-192.png', './assets/icon-512.png', './assets/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache:'reload' skips the browser's HTTP cache so an update never re-caches stale files
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache:'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
