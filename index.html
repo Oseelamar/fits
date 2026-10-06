@@ -459,6 +459,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ================================================================
    DATA
@@ -1017,11 +1018,13 @@ const Pack = (() => {
     GX = IN.x0 + GW/2 + .2; GZ = IN.z0 + GD/2 + .1;
     RCOL = [IN.x1 - 9.1, IN.x1 - 5.6, IN.x1 - 2.1]; RLEN = innerD - .5; RZ = IN.z0 + RLEN/2 + .2;
     GZ_S = IN.z0 + 7.6;
+    SHOE_H = ITEM_STYLE === 'classic' ? 8 : 9.6;
     POCKET = {
       wash:    { p: V(W/2 - W*.22, -H*.28, 2.1), r: new THREE.Euler(0, 0, .04) },
       pouch:   { p: V(W/2 + W*.25, -H*.3, 2.55), r: new THREE.Euler(0, 0, -.05) },
       umbrella:{ p: V(W/2, -H*.085, 2.6), r: new THREE.Euler(0, 0, 0) },
       laptop:  { p: V(W/2, H*.18, 3.35), r: new THREE.Euler(0, 0, 0) },
+      sunglasses:{ p: V(W/2 + W*.04, H*.37, 1.6), r: new THREE.Euler(0, Math.PI, -.06) },
     };
     PR = R + .5; PX = W/2 + .5; PY = H/2 + .5;
     segs = [
@@ -1033,7 +1036,7 @@ const Pack = (() => {
     ];
     PLEN = segs.reduce((s, g) => s + g.len, 0);
   }
-  const tOf = id => CAT[id].t * TS;
+  const tOf = id => CAT[id].t * (ITEM_STYLE === 'classic' ? TS : Math.sqrt(TS));
 
   // ---------- tiny animation engine ----------
   const tweens = [];
@@ -1250,6 +1253,364 @@ const Pack = (() => {
     return g;
   }
 
+  // =================================================================
+  // REALISTIC ITEMS (v2). The classic builders above are left untouched.
+  // To go back to the classic look: set ITEM_STYLE to 'classic' below,
+  // or open the page with ?items=classic to compare.
+  // =================================================================
+  const ITEM_STYLE = new URLSearchParams(location.search).get('items') || 'real';
+  const REAL = ITEM_STYLE !== 'classic';
+  const TILE = 4;                 // cm of fabric one texture tile covers
+  const TPX = 256, PXCM = TPX / TILE;
+
+  // per item, per colourway: fabric weave, base colour, optional stripe [colour, share of period, period cm]
+  const LOOKS = {
+    tees:     [{ fab:'jersey', c:'#EEE8DD', stripe:['#24345A', .34, 1.1] }, { fab:'jersey', c:'#D8CBB4' }, { fab:'jersey', c:'#4A5944' },
+               { fab:'jersey', c:'#F3F0EA', stripe:['#A7ABB1', .22, .8] }, { fab:'jersey', c:'#23262C' }, { fab:'jersey', c:'#E9E4DA' }],
+    shirts:   [{ fab:'oxford', c:'#7E9FC6' }, { fab:'oxford', c:'#F1EEE8' }, { fab:'oxford', c:'#CBD7E3', stripe:['#7189AE', .14, .55] }],
+    trousers: [{ fab:'twill', c:'#2E4466', denim:true }, { fab:'twill', c:'#C7B497' }, { fab:'twill', c:'#3B4048' }],
+    shorts:   [{ fab:'twill', c:'#C7B497' }, { fab:'twill', c:'#6B7A63' }, { fab:'twill', c:'#2E4466', denim:true }],
+    sweater:  [{ fab:'knit', c:'#D9CAB2' }, { fab:'knit', c:'#55634E' }, { fab:'knit', c:'#8A6A4E' }],
+    jacket:   [{ fab:'canvas', c:'#4A5640' }, { fab:'canvas', c:'#23293A' }, { fab:'canvas', c:'#7A5B42' }],
+    blazer:   [{ fab:'twill', c:'#2B2F38' }, { fab:'twill', c:'#4A4F57' }],
+    swim:     [{ fab:'jersey', c:'#D2643F' }, { fab:'jersey', c:'#2F6F8F', stripe:['#F1EEE8', .25, 1.4] }],
+    gym:      [{ fab:'jersey', c:'#26292E' }, { fab:'jersey', c:'#7E8A93' }],
+    underwear:[{ fab:'jersey', c:'#F1EEE8' }, { fab:'jersey', c:'#2A2D33' }, { fab:'jersey', c:'#8F99A4' }],
+    socks:    [{ fab:'knit', c:'#E6E1D7' }, { fab:'knit', c:'#2A2D33' }, { fab:'knit', c:'#B3A285', stripe:['#7A5B42', .2, .9] }],
+  };
+
+  // ---------- procedural fabric: height field → colour map + normal map ----------
+  const hexRGB = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  function weave(g, kind, s){
+    g.fillStyle = 'rgb(118,118,118)'; g.fillRect(0, 0, s, s);
+    const light = a => `rgba(255,255,255,${a})`, dark = a => `rgba(0,0,0,${a})`;
+    if (kind === 'jersey'){            // fine knitted loops
+      for (let y = 0, r = 0; y < s; y += 4, r++) for (let x = 0; x < s; x += 4){
+        g.fillStyle = light(.4); g.beginPath(); g.ellipse(x + (r % 2) * 2, y + 2, 1.4, 2.1, 0, 0, Math.PI*2); g.fill();
+      }
+    } else if (kind === 'oxford'){     // basket weave
+      for (let y = 0; y < s; y += 2) for (let x = 0; x < s; x += 2){
+        g.fillStyle = ((x >> 1) + (y >> 1)) % 2 ? light(.3) : dark(.15); g.fillRect(x, y, 2, 2);
+      }
+    } else if (kind === 'twill'){      // diagonal twill lines
+      g.lineWidth = 1.6;
+      for (let i = -s; i < s * 2; i += 4){ g.strokeStyle = light(.4); g.beginPath(); g.moveTo(i, 0); g.lineTo(i - s, s); g.stroke(); }
+      for (let i = 0; i < 130; i++){ g.fillStyle = Math.random() < .5 ? light(.08) : dark(.08); g.fillRect(Math.random()*s, Math.random()*s, 1, 4 + Math.random()*16); }
+    } else if (kind === 'knit'){       // chunky knit: columns of V stitches
+      for (let x = 0; x < s; x += 16) for (let y = 0; y < s; y += 10){
+        g.fillStyle = light(.45);
+        g.beginPath(); g.ellipse(x + 4.5, y + 5, 3.4, 5.4, .5, 0, Math.PI*2); g.fill();
+        g.beginPath(); g.ellipse(x + 11.5, y + 5, 3.4, 5.4, -.5, 0, Math.PI*2); g.fill();
+        g.fillStyle = dark(.25); g.fillRect(x + 15, y, 1, 10);
+      }
+    } else if (kind === 'canvas'){     // coarse over-under weave
+      for (let y = 0; y < s; y += 4) for (let x = 0; x < s; x += 4){
+        const over = ((x >> 2) + (y >> 2)) % 2;
+        g.fillStyle = light(over ? .35 : .12); g.fillRect(x + (over ? 0 : .5), y + (over ? .5 : 0), over ? 4 : 3, over ? 3 : 4);
+      }
+    } else if (kind === 'leather'){
+      for (let i = 0; i < 700; i++){ g.fillStyle = Math.random() < .5 ? light(.08) : dark(.1); g.beginPath(); g.arc(Math.random()*s, Math.random()*s, .6 + Math.random()*2.5, 0, Math.PI*2); g.fill(); }
+    }
+    for (let i = 0; i < 2500; i++){ g.fillStyle = Math.random() < .5 ? light(.06) : dark(.06); g.fillRect(Math.random()*s, Math.random()*s, 1, 1); }
+  }
+  function fabricTextures(look){
+    const key = JSON.stringify(look);
+    if (texCache[key]) return texCache[key];
+    const s = TPX, hc = document.createElement('canvas'); hc.width = hc.height = s;
+    const hg = hc.getContext('2d'); weave(hg, look.fab, s);
+    const H = hg.getImageData(0, 0, s, s).data;
+    // colour: base (or stripe) shaded by the weave height, denim gets slub variation
+    const cc = document.createElement('canvas'); cc.width = cc.height = s; const cg = cc.getContext('2d');
+    const img = cg.createImageData(s, s), A = img.data, base = hexRGB(look.c), st = look.stripe ? hexRGB(look.stripe[0]) : null;
+    const period = look.stripe ? Math.round(look.stripe[2] * PXCM) : 0;
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++){
+      const i = (y * s + x) * 4, h = H[i] / 255;
+      const col = st && (y % period) < period * look.stripe[1] ? st : base;
+      const k = .93 + .1 * h + (look.denim ? (Math.sin(x * .9 + Math.sin(y * .05) * 3) * .025) : 0);
+      A[i] = Math.min(255, col[0] * k); A[i+1] = Math.min(255, col[1] * k); A[i+2] = Math.min(255, col[2] * k); A[i+3] = 255;
+    }
+    cg.putImageData(img, 0, 0);
+    // normal map from the height field (Sobel)
+    const nc = document.createElement('canvas'); nc.width = nc.height = s; const ng = nc.getContext('2d');
+    const nimg = ng.createImageData(s, s), N = nimg.data, at = (x, y) => H[(((y + s) % s) * s + ((x + s) % s)) * 4] / 255, str = 1.4;
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++){
+      const dx = (at(x+1, y-1) + 2*at(x+1, y) + at(x+1, y+1)) - (at(x-1, y-1) + 2*at(x-1, y) + at(x-1, y+1));
+      const dy = (at(x-1, y+1) + 2*at(x, y+1) + at(x+1, y+1)) - (at(x-1, y-1) + 2*at(x, y-1) + at(x+1, y-1));
+      let nx = -dx * str, ny = -dy * str, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+      const i = (y * s + x) * 4; N[i] = (nx * .5 + .5) * 255; N[i+1] = (ny * .5 + .5) * 255; N[i+2] = nz * 255; N[i+3] = 255;
+    }
+    ng.putImageData(nimg, 0, 0);
+    const wrap = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+    return texCache[key] = { map: wrap(cc, true), normal: wrap(nc, false) };
+  }
+  const texCache = {};
+  function realMat(look, opts = {}){
+    return mat('real' + JSON.stringify(look) + JSON.stringify(opts), () => {
+      const t = fabricTextures(look), lighter = new THREE.Color(look.c).lerp(new THREE.Color('#ffffff'), .45);
+      return new THREE.MeshPhysicalMaterial(Object.assign({
+        map: t.map, normalMap: t.normal, normalScale: new THREE.Vector2(.55, .55),
+        roughness: .93, sheen: look.denim ? .4 : 1, sheenRoughness: .55, sheenColor: lighter, envMapIntensity: .7,
+      }, opts));
+    });
+  }
+  // texture coordinates in centimetres so the weave has the same scale on every face
+  function cmUV(geo){
+    const p = geo.attributes.position, n = geo.attributes.normal, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++){
+      const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+      let u, v;
+      if (ay >= ax && ay >= az){ u = p.getX(i); v = p.getZ(i); }
+      else if (az >= ax){ u = p.getX(i); v = p.getY(i); }
+      else { u = p.getZ(i); v = p.getY(i); }
+      uv[i*2] = u / TILE; uv[i*2+1] = v / TILE;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    return geo;
+  }
+
+  // ---------- folded garment: soft, slightly puffy layers ----------
+  function softPanel(w, th, d, seed){
+    const geo = new RoundedBoxGeometry(w, th, d, 5, Math.min(.95, th * .49));
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++){
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const fx = 1 - Math.pow(2 * x / w, 2), fz = 1 - Math.pow(2 * z / d, 2);
+      if (y > 0) y += th * .34 * Math.max(0, fx) * Math.max(0, fz);                 // fabric puffs up in the middle
+      x += Math.sin(z * .35 + seed) * .14 + Math.sin(y * 2.1 + seed * 2) * .05;     // edges are never perfectly straight
+      z += Math.sin(x * .28 + seed * 1.7) * .12;
+      p.setXYZ(i, x, y, z);
+    }
+    geo.computeVertexNormals();
+    return cmUV(geo);
+  }
+  function makeGarmentReal(id, i, t){
+    const looks = LOOKS[id] || [{ fab:'jersey', c:(CAT[id].colors || ['#ccc'])[0] }];
+    const look = looks[i % looks.length], m = realMat(look), seed = i * 1.37 + id.length;
+    const g = new THREE.Group(), th = t/2;
+    const c = mesh(softPanel(GW, th, GD, seed), m); c.position.y = th/2; g.add(c);
+    const L = new THREE.Group(); L.position.set(-GW/2, th, 0);
+    const lm = mesh(softPanel(GW/2 + .9, th, GD - .3, seed + 1), m); lm.position.set(-GW/4 - .45, -th/2, 0); L.add(lm);
+    const Rg = new THREE.Group(); Rg.position.set(GW/2, th, 0);
+    const rm = mesh(softPanel(GW/2 + .9, th * .96, GD - .2, seed + 2), m); rm.position.set(GW/4 + .45, -th/2 - .04, .1); Rg.add(rm);
+    g.add(L, Rg); g.userData.fold = [L, Rg];
+    return g;
+  }
+
+  // ---------- rolled socks / underwear ----------
+  function makeRollReal(id, i, r){
+    const looks = LOOKS[id], look = looks[i % looks.length];
+    const side = realMat(look), cap = mat('rcap' + look.c, () => new THREE.MeshStandardMaterial({ color: look.c, roughness:.95, map:spiral }));
+    const geo = new THREE.CylinderGeometry(r, r, RLEN, 36, 8);
+    const p = geo.attributes.position, uv = geo.attributes.uv, n = geo.attributes.normal;
+    for (let k = 0; k < p.count; k++){
+      const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
+      if (Math.abs(n.getY(k)) < .5){                        // side wall: soft, uneven roll
+        const a = Math.atan2(z, x), s = 1 + .06 * Math.sin(a * 3 + i) + .05 * Math.cos(y * .6 + i);
+        p.setXYZ(k, x * s, y, z * s);
+        uv.setXY(k, a * r / TILE, y / TILE);
+      }
+    }
+    geo.computeVertexNormals();
+    const o = mesh(geo, [side, cap, cap]); o.rotation.x = Math.PI/2;
+    const g = new THREE.Group(); g.add(o); return g;
+  }
+
+  // ---------- shoes: shaped uppers on proper soles ----------
+  const SHOE_TYPES = [
+    { kind:'sneaker', upper:{ fab:'jersey', c:'#ECEAE5' }, sole:'#FAFAF8', tread:'#C9C5BD', lace:'#FFFFFF', tab:'#9AA6B2' },
+    { kind:'derby',   upper:{ fab:'leather', c:'#5B3823' }, sole:'#2B211B', tread:'#1C1612', lace:'#2A1D14', tab:'#4A2D1C', shiny:true },
+    { kind:'boot',    upper:{ fab:'leather', c:'#9A7752' }, sole:'#3A2D22', tread:'#2A211A', lace:'#5A3E26', tab:'#6B4F34' },
+    { kind:'sneaker', upper:{ fab:'jersey', c:'#2E3A55' }, sole:'#F4F2EE', tread:'#BDB7AD', lace:'#F4F2EE', tab:'#D2643F' },
+  ];
+  function shoeProfile(kind){
+    const s = new THREE.Shape(), b = kind === 'boot' ? 1.7 : 0;
+    s.moveTo(1.3, .2);
+    s.quadraticCurveTo(-.1, .5, .1, 2.6);                  // heel
+    s.quadraticCurveTo(.25, 5.6 + b, 1.2, 6.2 + b);        // heel counter
+    s.quadraticCurveTo(3, 5.6 + b, 5.2, 5.4 + b);          // collar dips around the ankle
+    s.quadraticCurveTo(7, 6.4 + b, 8.6, 6.3 + b * .8);     // tongue
+    s.quadraticCurveTo(13, 5.8 + b * .4, 17, 4.9);         // lacing slope
+    s.quadraticCurveTo(21.5, 4.3, 24.2, 3.3);              // toe box
+    s.quadraticCurveTo(26.6, 2.4, 26, 1.0);                // toe tip
+    s.quadraticCurveTo(25.5, .2, 24, .2);
+    s.lineTo(1.3, .2);
+    return s;
+  }
+  const footWidth = t => t < .62 ? .76 + .24 * Math.sin(t / .62 * Math.PI / 2) : 1 - .3 * Math.pow((t - .62) / .38, 2);
+  function taper(geo, len, k = 1){
+    geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
+    geo = mergeVertices(geo, 1e-3);
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++){ const t = Math.min(1, Math.max(0, (p.getX(i) + len/2) / len)); p.setZ(i, p.getZ(i) * footWidth(t) * k); }
+    geo.computeVertexNormals(); return geo;
+  }
+  // painted side panels: toe cap, heel counter, eyestay with eyelets, side overlay, mudguard, stitching
+  const SHOE_U = 28.8, SHOE_V = 11.5, SPX = 40;            // texture spans 28.8 x 11.5 cm of the side view
+  function shoeDesign(T, prof){
+    const key = 'shoe' + JSON.stringify(T); if (texCache[key]) return texCache[key];
+    const c = document.createElement('canvas'); c.width = SHOE_U * SPX; c.height = SHOE_V * SPX; const g = c.getContext('2d');
+    const X = x => (x + 1.2) * SPX, Y = y => c.height - (y + 1.2) * SPX;          // profile cm → canvas px
+    const pts = prof.getSpacedPoints(300), top = x => pts.reduce((m, q) => Math.abs(q.x - x) < .4 && q.y > m ? q.y : m, 0);
+    const shade = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
+    const base = T.upper.c, leather = T.upper.fab === 'leather';
+    g.fillStyle = base; g.fillRect(0, 0, c.width, c.height);
+    const stitch = (draw, col) => { g.save(); g.setLineDash([.28 * SPX, .2 * SPX]); g.lineWidth = .06 * SPX; g.strokeStyle = col; g.beginPath(); draw(); g.stroke(); g.restore(); };
+    // mudguard band just above the sole
+    g.fillStyle = shade(base, leather ? .9 : .94); g.fillRect(0, Y(1.5), c.width, Y(-1.2) - Y(1.5));
+    // toe cap
+    g.fillStyle = shade(base, leather ? .86 : .93);
+    g.beginPath(); g.moveTo(X(20.5), Y(-1)); g.quadraticCurveTo(X(20), Y(top(21) - .2), X(22.6), Y(top(22.6) + 1.2)); g.lineTo(X(28), Y(4)); g.lineTo(X(28), Y(-1)); g.fill();
+    stitch(() => { g.moveTo(X(20.2), Y(.8)); g.quadraticCurveTo(X(19.7), Y(top(21) - .5), X(22.4), Y(top(22.4) + .2)); }, shade(base, .7));
+    // heel counter
+    g.fillStyle = T.kind === 'sneaker' ? T.tab : shade(base, .82);
+    g.beginPath(); g.moveTo(X(-1.2), Y(-1)); g.lineTo(X(-1.2), Y(7.6)); g.quadraticCurveTo(X(2.2), Y(top(2.2) - 1.2), X(4.6), Y(2.4)); g.quadraticCurveTo(X(5), Y(.6), X(4.4), Y(-1)); g.fill();
+    stitch(() => { g.moveTo(X(-.2), Y(top(.4) - .6)); g.quadraticCurveTo(X(2.4), Y(top(2.4) - 1.6), X(4.2), Y(2.3)); }, shade(base, .6));
+    // eyestay along the lacing, with eyelets
+    g.save(); g.lineCap = 'round'; g.lineWidth = 1.5 * SPX; g.strokeStyle = shade(base, leather ? .88 : .9);
+    g.beginPath(); for (let x = 8.2; x <= 17.2; x += .3) { const y = top(x) - .7; x === 8.2 ? g.moveTo(X(x), Y(y)) : g.lineTo(X(x), Y(y)); } g.stroke(); g.restore();
+    g.fillStyle = shade(base, .45);
+    for (let x = 9.2; x <= 16.4; x += 1.6){ g.beginPath(); g.arc(X(x), Y(top(x) - .75), .2 * SPX, 0, Math.PI*2); g.fill(); }
+    // side overlay sweeping from the midfoot up to the laces (sneakers and boots)
+    if (T.kind !== 'derby'){
+      g.fillStyle = shade(base, T.kind === 'sneaker' ? 1.06 : .9);
+      g.beginPath(); g.moveTo(X(7), Y(1.4)); g.quadraticCurveTo(X(11), Y(1.6), X(16.4), Y(top(16.4) - 1.3)); g.lineTo(X(13.6), Y(top(13.6) - 1.3));
+      g.quadraticCurveTo(X(10.5), Y(2.6), X(7), Y(1.4)); g.fill();
+      stitch(() => { g.moveTo(X(7.4), Y(1.75)); g.quadraticCurveTo(X(11), Y(2), X(15.6), Y(top(15.6) - 1.5)); }, shade(base, .7));
+    } else {
+      // derby: quarter seam + brogue punching along the toe cap
+      stitch(() => { g.moveTo(X(8.6), Y(top(8.6) - .8)); g.quadraticCurveTo(X(9.2), Y(2.2), X(7.4), Y(.4)); }, shade(base, .55));
+      g.fillStyle = shade(base, .5);
+      for (let t = 0; t <= 1; t += .07){ const x = 20.2 + t * 2.4, y = .9 + t * (top(22.4) - .9); g.beginPath(); g.arc(X(x - .45), Y(y), .09 * SPX, 0, Math.PI*2); g.fill(); }
+    }
+    // mudguard stitch
+    stitch(() => { g.moveTo(0, Y(1.3)); g.lineTo(c.width, Y(1.3)); }, shade(base, .7));
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    return texCache[key] = t;
+  }
+  // design UVs (uv, side view) + tiled cm UVs for the weave bump (uv1)
+  function shoeUV(geo, len){
+    const p = geo.attributes.position, n = geo.attributes.normal, a = new Float32Array(p.count * 2), b = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++){
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), topFace = Math.abs(n.getY(i)) > .75;
+      a[i*2] = (x + len/2 + 1.2) / SHOE_U; a[i*2+1] = topFace ? .5 : (y - 2.1 + 1.2) / SHOE_V;
+      b[i*2] = (topFace ? x : x + z * .3) / TILE; b[i*2+1] = (topFace ? z : y) / TILE;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(a, 2)); geo.setAttribute('uv1', new THREE.BufferAttribute(b, 2));
+    return geo;
+  }
+  function makeShoeReal(type){
+    const T = SHOE_TYPES[type % SHOE_TYPES.length], LEN = 26.4, g = new THREE.Group();
+    const prof = shoeProfile(T.kind);
+    const upperM = mat('shoeUp' + type % SHOE_TYPES.length, () => {
+      const bump = fabricTextures(T.upper).normal.clone(); bump.channel = 1; bump.needsUpdate = true;
+      return new THREE.MeshPhysicalMaterial(Object.assign({ map: shoeDesign(T, prof), normalMap: bump, normalScale: new THREE.Vector2(.5, .5), roughness:.85, sheen:.6, sheenRoughness:.6,
+        sheenColor: new THREE.Color(T.upper.c).lerp(new THREE.Color('#fff'), .4) },
+        T.shiny ? { roughness:.4, sheen:0, clearcoat:.55, clearcoatRoughness:.3 } : T.upper.fab === 'leather' ? { roughness:.78, sheen:.8 } : {}));
+    });
+    const up = new THREE.ExtrudeGeometry(prof, { depth:6, bevelEnabled:true, bevelThickness:1.3, bevelSize:1.05, bevelSegments:5, curveSegments:18 });
+    up.translate(-LEN/2, 2.1, -3); const upG = shoeUV(taper(up, LEN), LEN);
+    g.add(mesh(upG, upperM));
+    // midsole + tread
+    const soleS = new THREE.Shape(); soleS.moveTo(1.4, 0); soleS.lineTo(25, 0); soleS.quadraticCurveTo(26.9, 0, 26.7, 1.3); soleS.lineTo(26.4, 2.4); soleS.lineTo(.4, 2.4); soleS.lineTo(.2, 1.2); soleS.quadraticCurveTo(.2, 0, 1.4, 0);
+    const sole = new THREE.ExtrudeGeometry(soleS, { depth:7.2, bevelEnabled:true, bevelThickness:.6, bevelSize:.45, bevelSegments:4, curveSegments:12 });
+    sole.translate(-LEN/2 - .2, .55, -3.6); const soleG = taper(sole, LEN, 1.04);
+    g.add(mesh(soleG, mat('sole' + T.sole, () => new THREE.MeshStandardMaterial({ color:T.sole, roughness:.62 }))));
+    const tread = soleG.clone(); tread.scale(1, .22, 1); tread.translate(0, -.12, 0);
+    g.add(mesh(tread, mat('tread' + T.tread, () => new THREE.MeshStandardMaterial({ color:T.tread, roughness:.9 }))));
+    // laces across the instep, following the top of the upper
+    const pts = prof.getSpacedPoints(240);
+    const topAt = x => pts.reduce((m, q) => Math.abs(q.x - x) < .5 && q.y > m ? q.y : m, 0);
+    const laceM = mat('lace' + T.lace, () => new THREE.MeshStandardMaterial({ color:T.lace, roughness:.8 }));
+    const lx = T.kind === 'boot' ? [9.6, 11.2, 12.8, 14.4, 16] : [9.4, 11, 12.6, 14.2, 15.8];
+    lx.forEach((x, k) => {
+      const lace = mesh(new RoundedBoxGeometry(.38, .26, 4.4, 2, .12), laceM);
+      lace.position.set(x - LEN/2, topAt(x) + 2.1 + 1.0, 0); lace.rotation.set(0, k % 2 ? .32 : -.32, -.16); g.add(lace);
+    });
+    // foot opening (dark liner) and tongue
+    const linerM = mat('liner', () => new THREE.MeshStandardMaterial({ color:'#2B2724', roughness:.95 }));
+    const liner = mesh(new RoundedBoxGeometry(6.2, 1.6, 4.4, 3, .7), linerM);
+    liner.position.set(3.6 - LEN/2, topAt(3.6) + 2.1 + .55, 0); liner.rotation.z = -.05; g.add(liner);
+    const tongue = mesh(cmUV(new RoundedBoxGeometry(4.6, .7, 3.6, 3, .32)), realMat(T.upper));
+    tongue.position.set(7.6 - LEN/2, topAt(7.6) + 2.1 + 1.15, 0); tongue.rotation.z = .12; g.add(tongue);
+    // heel tab
+    const tab = mesh(new RoundedBoxGeometry(1.1, 2.2, 3, 2, .4), mat('tab' + T.tab, () => new THREE.MeshStandardMaterial({ color:T.tab, roughness:.6 })));
+    tab.position.set(-LEN/2 + .15, (T.kind === 'boot' ? 7.9 : 6.2) + 1.6, 0); tab.rotation.z = .12; g.add(tab);
+    g.scale.set(24 / LEN, T.kind === 'boot' ? .86 : 1, .92);    // ~9.5 cm tall, fits one shoe layer
+    return g;
+  }
+  function makeShoesReal(i){
+    const g = new THREE.Group();
+    [[IN.z0 + 3.9 - GZ_S, 0], [IN.z0 + 11.4 - GZ_S, Math.PI]].forEach(([z, rot]) => {
+      const s = makeShoeReal(i); s.position.z = z; s.rotation.y = rot; g.add(s);
+    });
+    return g;
+  }
+
+  // ---------- tortoiseshell sunglasses ----------
+  let tortoise;
+  function makeSunglasses(){
+    if (!tortoise){
+      tortoise = canvasTex(256, (g, s) => {
+        g.fillStyle = '#5A3418'; g.fillRect(0, 0, s, s);
+        for (let i = 0; i < 70; i++){
+          const x = Math.random()*s, y = Math.random()*s, r = 6 + Math.random()*26, gr = g.createRadialGradient(x, y, 0, x, y, r);
+          const c = Math.random() < .55 ? '30,14,4' : '176,112,46';
+          gr.addColorStop(0, `rgba(${c},.85)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, r*2, r*2);
+        }
+      }, 1);
+    }
+    const frameM = mat('tort', () => new THREE.MeshPhysicalMaterial({ map:tortoise, roughness:.2, clearcoat:1, clearcoatRoughness:.08, side:THREE.DoubleSide }));
+    const lensM = mat('lens', () => new THREE.MeshPhysicalMaterial({ color:'#1B1D1A', roughness:.04, metalness:.15, clearcoat:1, envMapIntensity:1.6, side:THREE.DoubleSide }));
+    const metal = M().metal;
+    const lens = () => { const s = new THREE.Shape();
+      s.moveTo(-2.8, 1.9); s.lineTo(2.6, 2.2); s.quadraticCurveTo(3.05, 2.2, 2.95, 1.4); s.lineTo(2.35, -1.6);
+      s.quadraticCurveTo(2.05, -2.35, 1.0, -2.35); s.lineTo(-1.6, -2.25); s.quadraticCurveTo(-2.65, -2.1, -2.85, -1.2);
+      s.lineTo(-3.0, 1.4); s.quadraticCurveTo(-3.0, 1.9, -2.8, 1.9); return s; };
+    const ring = () => { const outer = new THREE.Shape(lens().getPoints(40).map(p => new THREE.Vector2(p.x * 1.2, p.y * 1.24 + .1)));
+      outer.holes.push(new THREE.Path(lens().getPoints(40))); return outer; };
+    const g = new THREE.Group();
+    for (const side of [-1, 1]){
+      const half = new THREE.Group(); half.position.x = side * 3.75; half.scale.x = side;
+      half.add(mesh(new THREE.ExtrudeGeometry(ring(), { depth:.55, bevelEnabled:true, bevelThickness:.12, bevelSize:.1, bevelSegments:3, curveSegments:10 }), frameM));
+      const l = mesh(new THREE.ExtrudeGeometry(lens(), { depth:.12, bevelEnabled:false, curveSegments:10 }), lensM); l.position.z = .2; half.add(l);
+      const hinge = mesh(new THREE.CylinderGeometry(.22, .22, .5, 10), metal); hinge.rotation.x = Math.PI/2; hinge.position.set(3.55, 1.65, -.1); half.add(hinge);
+      g.add(half);
+    }
+    const bridge = mesh(new RoundedBoxGeometry(1.5, .55, .55, 2, .2), frameM); bridge.position.set(0, 1.35, .28); g.add(bridge);
+    for (const [y, z] of [[1.55, -.75], [1.25, -1.35]]){                    // temples folded behind the lenses
+      const arm = mesh(new RoundedBoxGeometry(12.6, .5, .38, 2, .16), frameM); arm.position.set(0, y, z); g.add(arm);
+    }
+    return g;
+  }
+  function makePocketReal(kind){
+    if (kind === 'sunglasses') return makeSunglasses();
+    if (kind !== 'wash' && kind !== 'pouch') return makePocket(kind);
+    const g = new THREE.Group();
+    if (kind === 'wash'){
+      g.add(mesh(cmUV(new RoundedBoxGeometry(17, 11, 4.4, 5, 1.9)), realMat({ fab:'canvas', c:'#2F3D36' })));
+      const z = mesh(new RoundedBoxGeometry(15, .5, .5, 2, .2), M().teeth); z.position.set(0, 5.2, 0); g.add(z);
+      const pull = mesh(new RoundedBoxGeometry(1.2, 2.4, .4, 2, .15), M().metal); pull.position.set(6.6, 4.4, .3); g.add(pull);
+    } else {
+      g.add(mesh(cmUV(new RoundedBoxGeometry(15, 9.5, 3.4, 5, 1.5)), realMat({ fab:'canvas', c:'#CDB999' })));
+      const tab = mesh(new RoundedBoxGeometry(3, 1.4, .5, 2, .2), realMat({ fab:'leather', c:'#7A5238' }, { roughness:.55, sheen:0 })); tab.position.set(6.4, 4.6, 0); g.add(tab);
+    }
+    return g;
+  }
+  // in the realistic set, sunglasses ride in the lid on their own instead of inside the pouch
+  const visOf = id => REAL && id === 'sunglasses' ? 'sunglasses' : CAT[id].vis;
+  function prewarm(list){
+    if (!REAL) return;
+    const looks = [];
+    for (const x of list){
+      if (x.vis === 'garment' || x.vis === 'roll'){ const L = LOOKS[x.id]; if (L) looks.push(L[x.i % L.length]); }
+      if (x.vis === 'shoes') looks.push(SHOE_TYPES[x.i % SHOE_TYPES.length].upper);
+    }
+    looks.push({ fab:'canvas', c:'#2F3D36' }, { fab:'canvas', c:'#CDB999' }, { fab:'leather', c:'#7A5238' });
+    const todo = looks.filter((l, i) => looks.findIndex(m => JSON.stringify(m) === JSON.stringify(l)) === i);
+    const step = () => { const l = todo.shift(); if (!l) return; fabricTextures(l); setTimeout(step, 16); };
+    step();
+  }
+
   // ---------- the packing model: what physically sits where ----------
   let CS = null;          // current case { group, lid, pull, pocketItems, blob }
   let order = [];
@@ -1260,8 +1621,8 @@ const Pack = (() => {
       const c = CAT[id], n = S.qty[id] || 0;
       if (c.vis === 'garment' || c.vis === 'roll' || c.vis === 'shoes') for (let i = 0; i < n; i++) out.push({ key:`${id}#${i}`, id, i, vis:c.vis });
     }
-    const pocket = { wash:0, pouch:0, umbrella:0, laptop:0 };
-    for (const id of ORDER){ const c = CAT[id]; if (c.vis in pocket && S.qty[id]) pocket[c.vis] += c.kg; }
+    const pocket = { wash:0, pouch:0, umbrella:0, laptop:0, ...(REAL ? { sunglasses:0 } : {}) };
+    for (const id of ORDER){ const c = CAT[id], v = visOf(id); if (v in pocket && S.qty[id]) pocket[v] += c.kg; }
     for (const k in pocket) if (pocket[k] > 0) out.push({ key:'pk:' + k, id:k, vis:'pocket', kg:pocket[k] });
     return out;
   }
@@ -1303,10 +1664,17 @@ const Pack = (() => {
   // ---------- item motion ----------
   function spawn(inst){
     let obj; const c = CAT[inst.id];
-    if (inst.vis === 'garment') obj = makeGarment(c.colors[inst.i % c.colors.length], tOf(inst.id));
-    else if (inst.vis === 'roll') obj = makeRoll(c.colors[inst.i % c.colors.length], c.r);
-    else if (inst.vis === 'shoes') obj = makeShoes(inst.i);
-    else obj = makePocket(inst.id);
+    if (REAL){
+      if (inst.vis === 'garment') obj = makeGarmentReal(inst.id, inst.i, tOf(inst.id));
+      else if (inst.vis === 'roll') obj = makeRollReal(inst.id, inst.i, c.r);
+      else if (inst.vis === 'shoes') obj = makeShoesReal(inst.i);
+      else obj = makePocketReal(inst.id);
+    } else {   // classic look
+      if (inst.vis === 'garment') obj = makeGarment(c.colors[inst.i % c.colors.length], tOf(inst.id));
+      else if (inst.vis === 'roll') obj = makeRoll(c.colors[inst.i % c.colors.length], c.r);
+      else if (inst.vis === 'shoes') obj = makeShoes(inst.i);
+      else obj = makePocket(inst.id);
+    }
     obj.visible = false; scene.add(obj);
     const it = { ...inst, obj, kg: inst.kg ?? c.kg };
     live.set(inst.key, it); return it;
@@ -1494,6 +1862,7 @@ const Pack = (() => {
   async function run(){
     const my = ++session;
     reset();
+    prewarm(wantedInstances());
     CS.group.position.y = 16; CS.group.rotation.z = .04;
     await tween(900, (e, raw) => { CS.group.position.y = 16 * (1 - E.land(raw)); CS.group.rotation.z = .04 * (1 - E.out(raw)); CS.blob.material.opacity = .55 * E.out(raw); });
     kick(1.2);
@@ -1515,7 +1884,7 @@ const Pack = (() => {
       const it = live.get(x.key), target = lay.L[x.key];
       const gap = x.vis === 'roll' ? 150 : x.vis === 'shoes' ? 520 : x.vis === 'pocket' ? 420 : 330;
       jobs.push(enter(it, target, t));
-      const name = x.vis === 'pocket' ? { wash:'Toiletries', pouch:'Essentials pouch', umbrella:'Umbrella', laptop:'Laptop' }[x.id] : CAT[x.id].name;
+      const name = x.vis === 'pocket' ? { wash:'Toiletries', pouch:'Essentials pouch', umbrella:'Umbrella', laptop:'Laptop', sunglasses:'Sunglasses' }[x.id] : CAT[x.id].name;
       const total = x.vis === 'pocket' ? 1 : (S.qty[x.id] || 0);
       setTimeout(() => { if (my !== session) return; counts[name] = (counts[name] || 0) + 1; $('capName').textContent = name; $('capCount').textContent = total > 1 ? `${counts[name]} of ${total}` : ''; }, t + 200);
       t += gap;
@@ -1638,10 +2007,28 @@ const Pack = (() => {
     requestAnimationFrame(loop);
   }
   addEventListener('resize', () => built && resize());
+  // close-up of every realistic item on the table, for tuning materials (?lookdev)
+  function lookdev(){
+    Object.assign(phone.style, { width:'100vw', height:'100vh', borderRadius:'0', transform:'none', boxShadow:'none' });
+    resize(); running = true; requestAnimationFrame(loop);
+    setDims(BAGS.carry); makeTextures();
+    const add = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; scene.add(o); return o; };
+    let y = 0;
+    ['trousers','sweater','shirts','tees','tees','tees','jacket','tees'].forEach((id, k) => {
+      const g = makeGarmentReal(id, k, tOf(id)); setFold(g, 1); add(g, -14, y, 0, (k % 3 - 1) * .03); y += tOf(id);
+    });
+    add(makeShoeReal(0), 16, 0, -4, -.25); add(makeShoeReal(1), 16, 0, 8, .1);
+    add(makeShoeReal(2), 40, 0, 2, -.3);
+    const sg = makeSunglasses(); add(sg, 2, 2.9, 17, .25);
+    add(makeRollReal('socks', 0, 1.55), -2, 1.6, 14); add(makeRollReal('underwear', 1, 1.75), -6.5, 1.8, 14);
+    ui.head.classList.add('gone');
+    cam.target.set(12, 6, 4); cam.dist = 150;
+  }
   return {
     thumbs,
     enter(){
       if (!built) build();
+      if (/[?&]lookdev\b/.test(location.search)) return lookdev();
       resize(); running = true; last = now(); requestAnimationFrame(loop);
       clearTimeout(closeTimer); busy = Promise.resolve();
       setTimeout(run, 420);
